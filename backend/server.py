@@ -1063,6 +1063,11 @@ async def health():
     return {"status": "online", "ollama": ollama_ok, "fallback": bool(EMERGENT_KEY)}
 
 # ─── Include Router & Middleware ─────────────────────────────────────────────
+# Agency module
+import agency
+agency.init(db, get_current_user)
+app.include_router(agency.router)
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -1088,6 +1093,12 @@ async def startup():
     await db.agents.create_index([("user_id", 1)])
     await db.notes.create_index([("user_id", 1), ("created_at", -1)])
     await db.tasks.create_index([("user_id", 1), ("created_at", -1)])
+    # Agency indexes
+    await db.agency_access.create_index("user_id", unique=True)
+    await db.products.create_index("status")
+    await db.campaigns.create_index("product_id")
+    await db.rules.create_index([("product_id", 1), ("active", 1)])
+    await db.approvals.create_index([("status", 1), ("created_at", -1)])
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@novaclaw.com")
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")

@@ -5,6 +5,7 @@ import ChatArea from '@/components/ChatArea';
 import SettingsPanel from '@/components/SettingsPanel';
 import SkillsDashboard from '@/components/SkillsDashboard';
 import AgentManager from '@/components/AgentManager';
+import AgencyPanel from '@/components/AgencyPanel';
 import HandsFreeMode from '@/components/HandsFreeMode';
 import WakeWordListener from '@/components/WakeWordListener';
 import { Menu, Headphones } from 'lucide-react';
@@ -18,16 +19,22 @@ export default function ChatPage() {
   const [showSkills, setShowSkills] = useState(false);
   const [showAgents, setShowAgents] = useState(false);
   const [showHandsFree, setShowHandsFree] = useState(false);
+  const [showAgency, setShowAgency] = useState(false);
   const [agentName, setAgentName] = useState('NovaClaw');
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
+  const [hasAgencyAccess, setHasAgencyAccess] = useState(false);
 
-  // Load agent name and wake word setting
+  // Load settings and agency access
   useEffect(() => {
     (async () => {
       try {
         const { data } = await api.get('/settings');
         if (data.agent_name) setAgentName(data.agent_name);
         if (data.wake_word_enabled) setWakeWordEnabled(true);
+      } catch {}
+      try {
+        const { data } = await api.get('/agency/access/check');
+        setHasAgencyAccess(data.has_access);
       } catch {}
     })();
   }, [api]);
@@ -112,6 +119,7 @@ export default function ChatPage() {
           onOpenSettings={() => { setShowSettings(true); setSidebarOpen(false); }}
           onOpenSkills={() => { setShowSkills(true); setSidebarOpen(false); }}
           onOpenAgents={() => { setShowAgents(true); setSidebarOpen(false); }}
+          onOpenAgency={hasAgencyAccess ? () => { setShowAgency(true); setSidebarOpen(false); } : null}
         />
       </div>
 
@@ -158,6 +166,7 @@ export default function ChatPage() {
       {showSkills && <SkillsDashboard onClose={() => setShowSkills(false)} />}
       {/* Agents Modal */}
       {showAgents && <AgentManager onClose={() => setShowAgents(false)} onStartChat={startAgentChat} />}
+      {showAgency && <AgencyPanel onClose={() => setShowAgency(false)} agentName={agentName} />}
       {/* Hands-free Mode */}
       {showHandsFree && <HandsFreeMode onClose={() => { setShowHandsFree(false); setWakeWordEnabled(prev => prev); fetchConversations(); }} agentName={agentName} />}
       {/* Wake Word Listener (runs in background) */}

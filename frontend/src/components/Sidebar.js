@@ -1,8 +1,8 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Settings, Cpu, Trash2, MessageSquare, LogOut, Zap, Pencil, Check, X, Bot } from 'lucide-react';
+import { Plus, Settings, Cpu, Trash2, MessageSquare, LogOut, Zap, Pencil, Check, X, Bot, Building2 } from 'lucide-react';
 import { useState } from 'react';
 
-export default function Sidebar({ conversations, activeConvId, onSelect, onCreate, onDelete, onRename, onOpenSettings, onOpenSkills, onOpenAgents }) {
+export default function Sidebar({ conversations, activeConvId, onSelect, onCreate, onDelete, onRename, onOpenSettings, onOpenSkills, onOpenAgents, onOpenAgency }) {
   const { user, logout } = useAuth();
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -129,6 +129,18 @@ export default function Sidebar({ conversations, activeConvId, onSelect, onCreat
         >
           <Bot className="w-4 h-4" /> Meus Agentes
         </button>
+        {onOpenAgency && (
+          <button
+            data-testid="open-agency-btn"
+            onClick={onOpenAgency}
+            className="w-full py-2 px-3 text-xs font-medium flex items-center gap-2 transition-colors"
+            style={{ color: 'var(--accent)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,214,0,0.08)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            <Building2 className="w-4 h-4" /> Agencia
+          </button>
+        )}
         <button
           data-testid="open-skills-btn"
           onClick={onOpenSkills}
