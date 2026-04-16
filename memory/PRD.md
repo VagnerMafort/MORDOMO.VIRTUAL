@@ -78,6 +78,13 @@ Build an AI agent application similar to OpenClaw - a personal virtual butler/as
 - Terminal info box explicativo quando ativado
 - Configuração wake_word_enabled persistida no backend
 
+### 2026-04-16 - Iteration 7 (Mordomo Virtual + Agência de Marketing + Visual Futurista)
+- Renomeado para "Mordomo Virtual"
+- 24 agentes de marketing da arquitetura JAMES AGENCY implementados (ORION, DASH, MIDAS, NOVA, HUNTER, etc.)
+- 8 squads: Core & Governance, Data & Diagnostics, Traffic, Funnel & Sales, Creative, Pages & Conversion, Research & Product, Reporting & Finance
+- Hands-free redesenhado: fundo azul escuro (#020810), espectro de luz circular com 3 anéis que giram e pulsam com a voz via Web Audio API
+- AgentManager com busca e organização por squads
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
