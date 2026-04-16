@@ -1,89 +1,574 @@
-from fastapi import FastAPI, APIRouter
 from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
-from datetime import datetime, timezone
-
-
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
+from fastapi import FastAPI, APIRouter, Request, HTTPException, Depends
+from fastapi.responses import StreamingResponse
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+from bson import ObjectId
+import os, logging, json, asyncio, secrets, uuid, bcrypt, jwt, httpx, re, math
+from datetime import datetime, timezone, timedelta
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+# ─── Config ───────────────────────────────────────────────────────────────────
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
-app = FastAPI()
+JWT_ALGORITHM = "HS256"
+OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
+OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'qwen2.5:32b')
+EMERGENT_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
-# Create a router with the /api prefix
+app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+# ─── Auth Helpers ─────────────────────────────────────────────────────────────
+def get_jwt_secret():
+    return os.environ["JWT_SECRET"]
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
-# Add your routes to the router instead of directly to app
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+
+def create_access_token(user_id: str, email: str) -> str:
+    payload = {"sub": user_id, "email": email, "exp": datetime.now(timezone.utc) + timedelta(minutes=120), "type": "access"}
+    return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
+
+def create_refresh_token(user_id: str) -> str:
+    payload = {"sub": user_id, "exp": datetime.now(timezone.utc) + timedelta(days=7), "type": "refresh"}
+    return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
+
+async def get_current_user(request: Request) -> dict:
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header[7:] if auth_header.startswith("Bearer ") else None
+    if not token:
+        raise HTTPException(status_code=401, detail="Nao autenticado")
+    try:
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "access":
+            raise HTTPException(status_code=401, detail="Token invalido")
+        user = await db.users.find_one({"_id": ObjectId(payload["sub"])})
+        if not user:
+            raise HTTPException(status_code=401, detail="Usuario nao encontrado")
+        user["_id"] = str(user["_id"])
+        user.pop("password_hash", None)
+        return user
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expirado")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token invalido")
+
+# ─── Pydantic Models ─────────────────────────────────────────────────────────
+class RegisterInput(BaseModel):
+    email: str
+    password: str
+    name: str
+
+class LoginInput(BaseModel):
+    email: str
+    password: str
+
+class ConversationCreate(BaseModel):
+    title: Optional[str] = "Nova Conversa"
+
+class ConversationUpdate(BaseModel):
+    title: str
+
+class MessageCreate(BaseModel):
+    content: str
+
+class SettingsUpdate(BaseModel):
+    ollama_url: Optional[str] = None
+    ollama_model: Optional[str] = None
+    tts_enabled: Optional[bool] = None
+    tts_language: Optional[str] = None
+    skills_enabled: Optional[List[str]] = None
+
+# ─── Auth Routes ──────────────────────────────────────────────────────────────
+from fastapi.responses import JSONResponse
+
+@api_router.post("/auth/register")
+async def register(body: RegisterInput):
+    email = body.email.strip().lower()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(status_code=400, detail="E-mail ja cadastrado")
+    user_doc = {
+        "email": email,
+        "password_hash": hash_password(body.password),
+        "name": body.name.strip(),
+        "role": "user",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    result = await db.users.insert_one(user_doc)
+    user_id = str(result.inserted_id)
+    access = create_access_token(user_id, email)
+    refresh = create_refresh_token(user_id)
+    await db.settings.insert_one({
+        "user_id": user_id, "ollama_url": OLLAMA_URL, "ollama_model": OLLAMA_MODEL,
+        "tts_enabled": True, "tts_language": "pt-BR",
+        "skills_enabled": ["web_scraper", "calculator", "code_runner", "system_info", "datetime_info"]
+    })
+    return {"user": {"id": user_id, "email": email, "name": body.name.strip(), "role": "user"}, "access_token": access, "refresh_token": refresh}
+
+@api_router.post("/auth/login")
+async def login(body: LoginInput):
+    email = body.email.strip().lower()
+    # Brute force check
+    identifier = email
+    attempt = await db.login_attempts.find_one({"identifier": identifier})
+    if attempt and attempt.get("count", 0) >= 5:
+        locked_until = attempt.get("locked_until")
+        if locked_until and datetime.now(timezone.utc) < datetime.fromisoformat(locked_until):
+            raise HTTPException(status_code=429, detail="Muitas tentativas. Tente novamente em 15 minutos.")
+        else:
+            await db.login_attempts.delete_one({"identifier": identifier})
+    user = await db.users.find_one({"email": email})
+    if not user or not verify_password(body.password, user["password_hash"]):
+        await db.login_attempts.update_one(
+            {"identifier": identifier},
+            {"$inc": {"count": 1}, "$set": {"locked_until": (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()}},
+            upsert=True
+        )
+        raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+    await db.login_attempts.delete_one({"identifier": identifier})
+    user_id = str(user["_id"])
+    access = create_access_token(user_id, email)
+    refresh = create_refresh_token(user_id)
+    return {"user": {"id": user_id, "email": email, "name": user.get("name", ""), "role": user.get("role", "user")}, "access_token": access, "refresh_token": refresh}
+
+@api_router.post("/auth/logout")
+async def logout():
+    return {"message": "Desconectado"}
+
+@api_router.get("/auth/me")
+async def me(request: Request):
+    user = await get_current_user(request)
+    return user
+
+class RefreshInput(BaseModel):
+    refresh_token: str
+
+@api_router.post("/auth/refresh")
+async def refresh_token(body: RefreshInput):
+    token = body.refresh_token
+    if not token:
+        raise HTTPException(status_code=401, detail="Sem refresh token")
+    try:
+        payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Token invalido")
+        user = await db.users.find_one({"_id": ObjectId(payload["sub"])})
+        if not user:
+            raise HTTPException(status_code=401, detail="Usuario nao encontrado")
+        user_id = str(user["_id"])
+        new_access = create_access_token(user_id, user["email"])
+        return {"access_token": new_access}
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token invalido")
+
+# ─── Conversation Routes ─────────────────────────────────────────────────────
+@api_router.get("/conversations")
+async def list_conversations(request: Request):
+    user = await get_current_user(request)
+    convos = await db.conversations.find(
+        {"user_id": user["_id"]}, {"_id": 0}
+    ).sort("updated_at", -1).to_list(100)
+    return convos
+
+@api_router.post("/conversations")
+async def create_conversation(body: ConversationCreate, request: Request):
+    user = await get_current_user(request)
+    now = datetime.now(timezone.utc).isoformat()
+    conv_id = str(uuid.uuid4())
+    doc = {
+        "id": conv_id,
+        "user_id": user["_id"],
+        "title": body.title or "Nova Conversa",
+        "created_at": now,
+        "updated_at": now
+    }
+    await db.conversations.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@api_router.put("/conversations/{conv_id}")
+async def update_conversation(conv_id: str, body: ConversationUpdate, request: Request):
+    user = await get_current_user(request)
+    result = await db.conversations.update_one(
+        {"id": conv_id, "user_id": user["_id"]},
+        {"$set": {"title": body.title, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Conversa nao encontrada")
+    return {"message": "Atualizado"}
+
+@api_router.delete("/conversations/{conv_id}")
+async def delete_conversation(conv_id: str, request: Request):
+    user = await get_current_user(request)
+    await db.conversations.delete_one({"id": conv_id, "user_id": user["_id"]})
+    await db.messages.delete_many({"conversation_id": conv_id})
+    return {"message": "Deletado"}
+
+# ─── Message Routes ──────────────────────────────────────────────────────────
+@api_router.get("/conversations/{conv_id}/messages")
+async def list_messages(conv_id: str, request: Request):
+    user = await get_current_user(request)
+    conv = await db.conversations.find_one({"id": conv_id, "user_id": user["_id"]})
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversa nao encontrada")
+    msgs = await db.messages.find({"conversation_id": conv_id}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    return msgs
+
+# ─── Skills System ───────────────────────────────────────────────────────────
+AVAILABLE_SKILLS = [
+    {"id": "web_scraper", "name": "Web Scraper", "description": "Extrair conteudo de paginas web", "icon": "Globe"},
+    {"id": "calculator", "name": "Calculadora", "description": "Calculos matematicos avancados", "icon": "Calculator"},
+    {"id": "code_runner", "name": "Executor de Codigo", "description": "Executar codigo Python", "icon": "Terminal"},
+    {"id": "system_info", "name": "Info do Sistema", "description": "Informacoes do sistema operacional", "icon": "Cpu"},
+    {"id": "datetime_info", "name": "Data e Hora", "description": "Data, hora e fusos horarios", "icon": "Clock"},
+    {"id": "file_manager", "name": "Gerenciador de Arquivos", "description": "Ler e escrever arquivos", "icon": "FolderOpen"},
+    {"id": "browser_automation", "name": "Automacao Web", "description": "Automatizar acoes no navegador", "icon": "Monitor"},
+    {"id": "cron_jobs", "name": "Tarefas Agendadas", "description": "Agendar tarefas recorrentes", "icon": "Timer"},
+    {"id": "email_manager", "name": "Gerenciador de E-mail", "description": "Enviar e ler e-mails", "icon": "Mail"},
+    {"id": "api_caller", "name": "Chamadas de API", "description": "Fazer requisicoes HTTP a APIs", "icon": "Zap"},
+]
+
+async def execute_skill(skill_id: str, args: dict) -> str:
+    try:
+        if skill_id == "web_scraper":
+            url = args.get("url", "")
+            async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as c:
+                r = await c.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(r.text, "html.parser")
+                for tag in soup(["script", "style", "nav", "footer", "header"]):
+                    tag.decompose()
+                text = soup.get_text(separator="\n", strip=True)
+                return text[:3000]
+        elif skill_id == "calculator":
+            expr = args.get("expression", "")
+            safe = re.sub(r'[^0-9+\-*/().%\s]', '', expr)
+            allowed = {"abs": abs, "round": round, "min": min, "max": max, "pow": pow,
+                       "sqrt": math.sqrt, "sin": math.sin, "cos": math.cos, "tan": math.tan,
+                       "pi": math.pi, "e": math.e, "log": math.log}
+            result = eval(safe, {"__builtins__": {}}, allowed)
+            return f"Resultado: {result}"
+        elif skill_id == "code_runner":
+            import subprocess
+            code = args.get("code", "")
+            proc = subprocess.run(["python3", "-c", code], capture_output=True, text=True, timeout=10)
+            output = proc.stdout or proc.stderr
+            return output[:2000] if output else "Codigo executado sem saida."
+        elif skill_id == "system_info":
+            import platform
+            info = {
+                "sistema": platform.system(),
+                "versao": platform.version(),
+                "maquina": platform.machine(),
+                "processador": platform.processor(),
+                "python": platform.python_version(),
+                "hostname": platform.node()
+            }
+            return json.dumps(info, indent=2, ensure_ascii=False)
+        elif skill_id == "datetime_info":
+            tz_name = args.get("timezone", "UTC")
+            now = datetime.now(timezone.utc)
+            return f"Data/Hora UTC: {now.strftime('%d/%m/%Y %H:%M:%S')}\nTimestamp: {now.timestamp()}"
+        elif skill_id == "api_caller":
+            url = args.get("url", "")
+            method = args.get("method", "GET").upper()
+            async with httpx.AsyncClient(timeout=15.0) as c:
+                if method == "POST":
+                    r = await c.post(url, json=args.get("body", {}))
+                else:
+                    r = await c.get(url)
+                return r.text[:3000]
+        else:
+            return f"Skill '{skill_id}' disponivel apenas quando implantado na VPS com acesso completo ao sistema."
+    except Exception as e:
+        return f"Erro ao executar skill: {str(e)}"
+
+@api_router.get("/skills")
+async def list_skills(request: Request):
+    user = await get_current_user(request)
+    settings = await db.settings.find_one({"user_id": user["_id"]}, {"_id": 0})
+    enabled = settings.get("skills_enabled", []) if settings else []
+    skills = []
+    for s in AVAILABLE_SKILLS:
+        skills.append({**s, "enabled": s["id"] in enabled})
+    return skills
+
+@api_router.post("/skills/{skill_id}/toggle")
+async def toggle_skill(skill_id: str, request: Request):
+    user = await get_current_user(request)
+    settings = await db.settings.find_one({"user_id": user["_id"]})
+    if not settings:
+        raise HTTPException(status_code=404, detail="Configuracoes nao encontradas")
+    enabled = settings.get("skills_enabled", [])
+    if skill_id in enabled:
+        enabled.remove(skill_id)
+    else:
+        enabled.append(skill_id)
+    await db.settings.update_one({"user_id": user["_id"]}, {"$set": {"skills_enabled": enabled}})
+    return {"enabled": enabled}
+
+# ─── Settings Routes ─────────────────────────────────────────────────────────
+@api_router.get("/settings")
+async def get_settings(request: Request):
+    user = await get_current_user(request)
+    settings = await db.settings.find_one({"user_id": user["_id"]}, {"_id": 0})
+    if not settings:
+        default = {
+            "user_id": user["_id"],
+            "ollama_url": OLLAMA_URL,
+            "ollama_model": OLLAMA_MODEL,
+            "tts_enabled": True,
+            "tts_language": "pt-BR",
+            "skills_enabled": ["web_scraper", "calculator", "code_runner", "system_info", "datetime_info"]
+        }
+        await db.settings.insert_one(default)
+        default.pop("_id", None)
+        return default
+    return settings
+
+@api_router.put("/settings")
+async def update_settings(body: SettingsUpdate, request: Request):
+    user = await get_current_user(request)
+    update_data = {k: v for k, v in body.model_dump().items() if v is not None}
+    if update_data:
+        await db.settings.update_one({"user_id": user["_id"]}, {"$set": update_data}, upsert=True)
+    settings = await db.settings.find_one({"user_id": user["_id"]}, {"_id": 0})
+    return settings
+
+# ─── LLM & Streaming ────────────────────────────────────────────────────────
+SYSTEM_PROMPT = """Voce e o NovaClaw, um assistente AI pessoal avancado e mordomo virtual. Voce foi criado para executar tarefas online e auxiliar o usuario em qualquer necessidade.
+
+Suas capacidades incluem:
+- Responder perguntas com conhecimento profundo
+- Ajudar com programacao e codigo
+- Analisar e extrair dados da web
+- Fazer calculos matematicos
+- Executar codigo Python
+- Fornecer informacoes do sistema
+- Gerenciar tarefas e lembretes
+
+Quando precisar usar uma habilidade especial, responda com o formato:
+[SKILL:nome_skill] {"parametro": "valor"}
+
+Skills disponiveis:
+- [SKILL:web_scraper] {"url": "https://..."} - Extrair conteudo de uma pagina
+- [SKILL:calculator] {"expression": "2+2"} - Calcular expressao matematica
+- [SKILL:code_runner] {"code": "print('hello')"} - Executar codigo Python
+- [SKILL:system_info] {} - Info do sistema
+- [SKILL:datetime_info] {"timezone": "UTC"} - Data e hora atual
+- [SKILL:api_caller] {"url": "...", "method": "GET"} - Chamar uma API
+
+Responda sempre em portugues brasileiro. Seja preciso, util e proativo. Use markdown para formatacao quando apropriado."""
+
+def build_messages(history: list, user_msg: str) -> list:
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for m in history[-20:]:
+        messages.append({"role": m["role"], "content": m["content"]})
+    messages.append({"role": "user", "content": user_msg})
+    return messages
+
+async def stream_ollama(messages: list, ollama_url: str, model: str):
+    async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0)) as c:
+        async with c.stream("POST", f"{ollama_url}/api/chat", json={"model": model, "messages": messages, "stream": True}) as r:
+            async for line in r.aiter_lines():
+                if line:
+                    data = json.loads(line)
+                    content = data.get("message", {}).get("content", "")
+                    if content:
+                        yield content
+                    if data.get("done"):
+                        break
+
+async def chat_emergent_fallback(messages: list) -> str:
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        # Build system message and history
+        system_msg = ""
+        history = []
+        user_text = ""
+        for m in messages:
+            if m["role"] == "system":
+                system_msg = m["content"]
+            elif m["role"] == "user":
+                user_text = m["content"]
+                history.append({"role": "user", "content": m["content"]})
+            elif m["role"] == "assistant":
+                history.append({"role": "assistant", "content": m["content"]})
+        chat = LlmChat(
+            api_key=EMERGENT_KEY,
+            session_id=str(uuid.uuid4()),
+            system_message=system_msg or "Voce e o NovaClaw, um assistente AI pessoal.",
+            initial_messages=history[:-1] if len(history) > 1 else []
+        )
+        chat = chat.with_model("openai", "gpt-4o-mini")
+        response = await chat.send_message(UserMessage(text=user_text))
+        return response
+    except Exception as e:
+        logger.error(f"Emergent fallback error: {e}")
+        return f"Desculpe, ocorreu um erro ao processar sua mensagem. Erro: {str(e)}"
+
+async def process_skill_calls(text: str) -> tuple:
+    """Check for skill calls in LLM response and execute them."""
+    skill_pattern = r'\[SKILL:(\w+)\]\s*(\{[^}]*\})'
+    matches = re.findall(skill_pattern, text)
+    if not matches:
+        return text, []
+    skill_results = []
+    for skill_id, args_str in matches:
+        try:
+            args = json.loads(args_str)
+        except json.JSONDecodeError:
+            args = {}
+        result = await execute_skill(skill_id, args)
+        skill_results.append({"skill": skill_id, "args": args, "result": result})
+        text = text.replace(f"[SKILL:{skill_id}] {args_str}", f"\n**[Executando: {skill_id}]**\n```\n{result}\n```\n")
+    return text, skill_results
+
+@api_router.post("/conversations/{conv_id}/messages")
+async def send_message(conv_id: str, body: MessageCreate, request: Request):
+    user = await get_current_user(request)
+    conv = await db.conversations.find_one({"id": conv_id, "user_id": user["_id"]})
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversa nao encontrada")
+    now = datetime.now(timezone.utc).isoformat()
+    user_msg_id = str(uuid.uuid4())
+    await db.messages.insert_one({
+        "id": user_msg_id, "conversation_id": conv_id,
+        "role": "user", "content": body.content, "created_at": now
+    })
+    # Update conversation title if first message
+    msg_count = await db.messages.count_documents({"conversation_id": conv_id})
+    if msg_count <= 1:
+        title = body.content[:50] + ("..." if len(body.content) > 50 else "")
+        await db.conversations.update_one({"id": conv_id}, {"$set": {"title": title, "updated_at": now}})
+    # Get history
+    history = await db.messages.find({"conversation_id": conv_id}, {"_id": 0}).sort("created_at", 1).to_list(100)
+    # Get user settings
+    settings = await db.settings.find_one({"user_id": user["_id"]})
+    ollama_url = settings.get("ollama_url", OLLAMA_URL) if settings else OLLAMA_URL
+    ollama_model = settings.get("ollama_model", OLLAMA_MODEL) if settings else OLLAMA_MODEL
+    messages = build_messages(history[:-1], body.content)
+
+    ai_msg_id = str(uuid.uuid4())
+
+    async def event_stream():
+        full_response = ""
+        try:
+            async for token in stream_ollama(messages, ollama_url, ollama_model):
+                full_response += token
+                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+        except Exception as e:
+            logger.info(f"Ollama unavailable ({e}), using fallback...")
+            yield f"data: {json.dumps({'type': 'status', 'content': 'Usando modelo de fallback...'})}\n\n"
+            response_text = await chat_emergent_fallback(messages)
+            # Check for skill calls
+            response_text, skill_results = await process_skill_calls(response_text)
+            for sr in skill_results:
+                yield f"data: {json.dumps({'type': 'skill', 'skill': sr['skill'], 'result': sr['result']})}\n\n"
+            # Stream the response in chunks to simulate streaming
+            for i in range(0, len(response_text), 4):
+                chunk = response_text[i:i+4]
+                full_response += chunk
+                yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+                await asyncio.sleep(0.015)
+
+        # Check for skill calls in streamed response
+        if full_response and not full_response.startswith(""):
+            processed, skill_results = await process_skill_calls(full_response)
+            if skill_results:
+                full_response = processed
+                for sr in skill_results:
+                    yield f"data: {json.dumps({'type': 'skill', 'skill': sr['skill'], 'result': sr['result']})}\n\n"
+
+        # Store AI message
+        await db.messages.insert_one({
+            "id": ai_msg_id, "conversation_id": conv_id,
+            "role": "assistant", "content": full_response, "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        await db.conversations.update_one({"id": conv_id}, {"$set": {"updated_at": datetime.now(timezone.utc).isoformat()}})
+        yield f"data: {json.dumps({'type': 'done', 'message_id': ai_msg_id})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+# ─── Health & Root ───────────────────────────────────────────────────────────
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "NovaClaw API", "version": "1.0.0"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
+@api_router.get("/health")
+async def health():
+    ollama_ok = False
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as c:
+            r = await c.get(f"{OLLAMA_URL}/api/tags")
+            ollama_ok = r.status_code == 200
+    except Exception:
+        pass
+    return {"status": "online", "ollama": ollama_ok, "fallback": bool(EMERGENT_KEY)}
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
-
-# Include the router in the main app
+# ─── Include Router & Middleware ─────────────────────────────────────────────
 app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# ─── Startup ─────────────────────────────────────────────────────────────────
+@app.on_event("startup")
+async def startup():
+    # Indexes
+    await db.users.create_index("email", unique=True)
+    await db.conversations.create_index([("user_id", 1), ("updated_at", -1)])
+    await db.messages.create_index([("conversation_id", 1), ("created_at", 1)])
+    await db.settings.create_index("user_id", unique=True)
+    await db.login_attempts.create_index("identifier")
+    # Seed admin
+    admin_email = os.environ.get("ADMIN_EMAIL", "admin@novaclaw.com")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
+    existing = await db.users.find_one({"email": admin_email})
+    if not existing:
+        hashed = hash_password(admin_password)
+        result = await db.users.insert_one({
+            "email": admin_email, "password_hash": hashed,
+            "name": "Admin", "role": "admin",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        user_id = str(result.inserted_id)
+        await db.settings.insert_one({
+            "user_id": user_id, "ollama_url": OLLAMA_URL, "ollama_model": OLLAMA_MODEL,
+            "tts_enabled": True, "tts_language": "pt-BR",
+            "skills_enabled": ["web_scraper", "calculator", "code_runner", "system_info", "datetime_info"]
+        })
+        logger.info(f"Admin criado: {admin_email}")
+    elif not verify_password(admin_password, existing["password_hash"]):
+        await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
+        logger.info("Senha do admin atualizada")
+    # Write test credentials
+    try:
+        os.makedirs("/app/memory", exist_ok=True)
+        with open("/app/memory/test_credentials.md", "w") as f:
+            f.write(f"# Test Credentials\n\n## Admin\n- Email: {admin_email}\n- Password: {admin_password}\n- Role: admin\n\n## Auth Endpoints\n- POST /api/auth/register\n- POST /api/auth/login\n- POST /api/auth/logout\n- GET /api/auth/me\n- POST /api/auth/refresh\n")
+    except Exception:
+        pass
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown():
     client.close()
