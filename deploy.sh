@@ -2,7 +2,8 @@
 set -e
 
 DOMAIN="mordomo.virtual.grupomafort.com"
-EMAIL="${CERTBOT_EMAIL:-admin@grupomafort.com}"
+ADMIN_USER_EMAIL="ministerioprvagner@gmail.com"
+EMAIL="${CERTBOT_EMAIL:-$ADMIN_USER_EMAIL}"
 
 echo "=========================================="
 echo "  Mordomo Virtual - Deploy Completo"
@@ -31,11 +32,12 @@ if [ ! -f .env ]; then
     ADMIN_PASS=$(openssl rand -base64 12)
     cat > .env << EOF
 JWT_SECRET=$JWT
-ADMIN_EMAIL=admin@$DOMAIN
+ADMIN_EMAIL=$ADMIN_USER_EMAIL
 ADMIN_PASSWORD=$ADMIN_PASS
 OLLAMA_MODEL=qwen2.5:32b
 CERTBOT_EMAIL=$EMAIL
 EOF
+    echo "  Email admin: $ADMIN_USER_EMAIL"
     echo "  Senha admin gerada: $ADMIN_PASS"
     echo "  SALVE ESSA SENHA!"
 else
