@@ -1,0 +1,132 @@
+{
+  "theme": "Dark",
+  "archetype": "Archetype 4 (Swiss & High-Contrast Dark)",
+  "color_palette": {
+    "background_base": "#0A0A0A",
+    "background_surface": "#121212",
+    "background_elevated": "#1A1A1A",
+    "border_subtle": "rgba(255, 255, 255, 0.1)",
+    "border_focus": "#FFD600",
+    "text_primary": "#FFFFFF",
+    "text_secondary": "#A1A1AA",
+    "text_tertiary": "#71717A",
+    "accent_primary": "#FFD600",
+    "accent_hover": "#F0C800",
+    "accent_active": "#E0B800",
+    "accent_text": "#0A0A0A",
+    "success": "#22C55E",
+    "error": "#EF4444",
+    "info": "#3B82F6",
+    "terminal_bg": "#050505",
+    "terminal_text": "#4ADE80"
+  },
+  "typography": {
+    "headings": {
+      "family": "'Outfit', sans-serif",
+      "h1": "text-4xl sm:text-5xl tracking-tighter font-black text-white",
+      "h2": "text-2xl sm:text-3xl tracking-tight font-bold text-white",
+      "h3": "text-xl sm:text-2xl tracking-tight font-medium text-white",
+      "h4": "text-lg sm:text-xl tracking-tight font-medium text-white"
+    },
+    "body": {
+      "family": "'IBM Plex Sans', sans-serif",
+      "base": "text-base leading-relaxed text-[#A1A1AA]",
+      "sm": "text-sm text-[#71717A]"
+    },
+    "monospace": {
+      "family": "'JetBrains Mono', monospace",
+      "size": "text-sm tracking-tight"
+    }
+  },
+  "spacing_and_layout": {
+    "container_padding": "px-4 py-6 md:p-10",
+    "card_padding": "p-5 sm:p-8",
+    "gap_small": "gap-3",
+    "gap_medium": "gap-6",
+    "gap_large": "gap-10 sm:gap-16",
+    "radius_surface": "rounded-none",
+    "radius_button": "rounded-none"
+  },
+  "components": {
+    "button": {
+      "primary": "bg-[#FFD600] text-[#0A0A0A] hover:bg-[#F0C800] border-none font-medium px-6 py-3 transition-colors rounded-none flex items-center justify-center gap-2",
+      "secondary": "bg-transparent border border-white/20 text-white hover:bg-white/5 px-6 py-3 transition-colors rounded-none flex items-center justify-center gap-2",
+      "ghost": "bg-transparent text-[#A1A1AA] hover:text-white hover:bg-white/5 transition-colors rounded-none flex items-center justify-center gap-2"
+    },
+    "input": {
+      "base": "bg-[#121212] border border-white/10 text-white placeholder:text-[#71717A] focus:border-[#FFD600] focus:ring-1 focus:ring-[#FFD600] rounded-none py-3 px-4 w-full transition-all"
+    },
+    "chat_bubble": {
+      "user": "bg-[#1A1A1A] border border-white/10 text-white p-4 max-w-[90%] md:max-w-[80%] self-end",
+      "ai": "bg-transparent text-[#A1A1AA] p-4 max-w-[100%] md:max-w-[90%] self-start border-l-2 border-[#FFD600] pl-6"
+    },
+    "terminal_log": {
+      "container": "bg-[#050505] border border-white/10 p-4 mt-2 font-mono text-xs md:text-sm text-[#4ADE80] overflow-x-auto"
+    },
+    "surface": {
+      "card": "bg-[#121212] border border-white/10 p-6 flex flex-col gap-4",
+      "glass": "bg-black/60 backdrop-blur-xl border-b border-white/10"
+    }
+  },
+  "motion": {
+    "hover": "transition-all duration-200 ease-out",
+    "page_enter": "animate-in fade-in slide-in-from-bottom-4 duration-500",
+    "chat_message_enter": "animate-in fade-in slide-in-from-bottom-2 duration-300"
+  },
+  "media": {
+    "images": {
+      "login_bg": {
+        "url": "https://images.unsplash.com/photo-1775057154553-0f3e8902fea3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRhcmslMjBncmlkJTIwbmV0d29ya3xlbnwwfHx8fDE3NzYzNTY5NjR8MA&ixlib=rb-4.1.0&q=85",
+        "alt": "Abstract dark grid network",
+        "usage": "Background image for the authentication screen. Must use an overlay like bg-black/80 to ensure text readability."
+      },
+      "bot_avatar": {
+        "url": "https://images.unsplash.com/photo-1760931969401-9bd6ee902798?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwxfHxyb2JvdCUyMGFic3RyYWN0JTIwZ2xvd2luZyUyMGRhcmt8ZW58MHx8fHwxNzc2MzU2OTYxfDA&ixlib=rb-4.1.0&q=85",
+        "alt": "AI Avatar",
+        "usage": "Avatar representing the OpenClaw AI assistant in the chat interface and header."
+      }
+    }
+  },
+  "iconography": {
+    "library": "lucide-react",
+    "stroke_width": "1.5",
+    "size": "w-5 h-5",
+    "instructions": "Use lucide-react icons. For terminal/execution states, use the Terminal icon. For voice mode, use Mic/MicOff icons."
+  },
+  "instructions_to_main_agent": [
+    "This is a PWA. The application MUST be mobile-first and responsive. The chat history sidebar should be placed inside a Shadcn Sheet component on mobile viewports, and act as a fixed sidebar (aside) on desktop.",
+    "The UI is built on a dark 'Swiss & High-Contrast' aesthetic. Override all Shadcn default rounded corners with `rounded-none`. Rely on strict 1px borders (`border-white/10`) and flat surfaces.",
+    "Add 'Outfit' and 'IBM Plex Sans' from Google Fonts to your index.html. Use 'Outfit' for all headings and 'IBM Plex Sans' for body text. Use 'JetBrains Mono' for terminal logs/skill execution.",
+    "The chat interface should have the text input pinned to the bottom of the screen. Include a prominent 'Modo Mãos Livres' (Voice Mode) button near the input to toggle STT/TTS hands-free mode.",
+    "When the AI is executing a system skill (e.g., cron jobs, file management), show a terminal-like block (`terminal_log` style) inside the AI message bubble to represent the skill execution status.",
+    "The 'Painel de Habilidades' (Skills Dashboard) should be a separate view or a large modal that lists the agent's capabilities (Browser Automation, File Management, System Commands, etc.) with toggles or status indicators showing if they are active.",
+    "Translate the entire interface to Portuguese BR (pt-BR) as per the i18n specifications.",
+    "Ensure 'data-testid' is present on all interactive elements (e.g., data-testid='send-message-btn', data-testid='voice-mode-toggle').",
+    "The Settings Panel should allow configuring the local LLM connection (Ollama URL).",
+    "Implement multiple user support with authentication screen. Use the provided login_bg image."
+  ],
+  "i18n": {
+    "language": "pt-BR",
+    "translations": {
+      "new_chat": "Nova Conversa",
+      "history": "Histórico de Conversas",
+      "settings": "Configurações",
+      "skills": "Habilidades do Agente",
+      "voice_mode": "Modo Voz",
+      "voice_mode_active": "Ouvindo...",
+      "type_message": "Digite sua mensagem aqui...",
+      "send": "Enviar",
+      "login": "Entrar no Sistema",
+      "email": "E-mail de Acesso",
+      "password": "Senha",
+      "system_status": "Status do Sistema",
+      "ollama_url": "URL da API Ollama",
+      "save_settings": "Salvar Configurações",
+      "logout": "Desconectar",
+      "browser_automation": "Automação Web",
+      "file_management": "Arquivos do Sistema",
+      "system_commands": "Comandos do SO",
+      "cron_jobs": "Tarefas Agendadas (Cron)"
+    }
+  }
+}
