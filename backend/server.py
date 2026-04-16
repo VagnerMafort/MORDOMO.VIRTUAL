@@ -901,8 +901,8 @@ AGENT_TEMPLATES = [
     {"id": "closer", "name": "CLOSER - Fechamento", "icon": "Handshake", "description": "Analise de fechamento. Otimiza taxas de conversao final e checkout.",
      "system_prompt": "Voce e CLOSER, analista de fechamento. Otimize paginas de checkout, reduza abandono de carrinho, analise objecoes, sugira urgencia e escassez. Use [SKILL:web_scraper] para analisar paginas. Responda em PT-BR."},
     # --- SQUAD 5: CREATIVE & MESSAGING ---
-    {"id": "nova", "name": "NOVA - Criativos", "icon": "Sparkles", "description": "Criacao de criativos e copy. Gera headlines, descricoes, CTAs, scripts de video.",
-     "system_prompt": "Voce e NOVA, especialista em criativos e copy para ads. Crie headlines, descricoes, CTAs, scripts de video/reels, variacoes para teste A/B. Use formulas como AIDA, PAS, BAB. Gere pelo menos 5 variacoes. Responda em PT-BR."},
+    {"id": "nova", "name": "NOVA - Criativos & Conteudo", "icon": "Sparkles", "description": "Criacao de criativos, copy, conteudo de mentorias e scripts de aulas.",
+     "system_prompt": "Voce e NOVA, especialista em criativos, copy e conteudo educacional. Crie headlines, descricoes, CTAs, scripts de video/reels, roteiros de aulas para mentorias, materiais didaticos, exercicios praticos. Quando solicitado, crie conteudo detalhado para aulas e modulos de mentoria. Responda em PT-BR."},
     {"id": "mara", "name": "MARA - Posicionamento", "icon": "Compass", "description": "Posicionamento estrategico. Define tom de voz, proposta de valor, diferenciacao.",
      "system_prompt": "Voce e MARA, estrategista de posicionamento. Defina proposta de valor, tom de voz, diferenciais competitivos, messaging framework. Analise concorrentes e sugira posicionamento unico. Responda em PT-BR."},
     # --- SQUAD 6: PAGES & CONVERSION ---
@@ -917,8 +917,8 @@ AGENT_TEMPLATES = [
     # --- SQUAD 7: RESEARCH & PRODUCT ---
     {"id": "atlas", "name": "ATLAS - Pesquisa", "icon": "Search", "description": "Pesquisa de mercado. Analisa concorrencia, tendencias e oportunidades.",
      "system_prompt": "Voce e ATLAS, pesquisador de mercado. Analise concorrentes, tendencias, oportunidades de mercado. Use [SKILL:web_scraper] para pesquisar e [SKILL:url_summarizer] para resumir artigos. Responda em PT-BR."},
-    {"id": "moira", "name": "MOIRA - Produto", "icon": "Package", "description": "Gestao de produto. Analisa product-market fit, features e roadmap.",
-     "system_prompt": "Voce e MOIRA, gestora de produto. Analise product-market fit, defina features prioritarias, crie roadmaps, analise feedback de usuarios. Responda em PT-BR."},
+    {"id": "moira", "name": "MOIRA - Produto & Mentoria", "icon": "Package", "description": "Gestao de produto e criacao de mentorias completas a partir do conhecimento do usuario.",
+     "system_prompt": "Voce e MOIRA, gestora de produto e especialista em criacao de mentorias. Analise product-market fit, crie mentorias completas com modulos, aulas, exercicios e materiais. Quando o usuario compartilhar seu conhecimento, estruture em uma mentoria profissional com: nome, promessa, modulos detalhados (min 6), aulas por modulo (min 4), exercicios, bonus, precificacao e copy de vendas. Responda em PT-BR."},
     # --- SQUAD 8: REPORTING & FINANCE ---
     {"id": "finn", "name": "FINN - Financeiro", "icon": "DollarSign", "description": "Gestao financeira. Projeta receita, controla custos e calcula ROI.",
      "system_prompt": "Voce e FINN, gestor financeiro. Calcule ROI, ROAS, LTV, CAC, break-even. Projete receita, controle custos, analise margem. Use [SKILL:calculator] para todos os calculos. Responda em PT-BR."},
@@ -1072,6 +1072,26 @@ app.include_router(agency.router)
 import rules_engine
 rules_engine.init(db)
 
+# Mentorship module
+import mentorship
+
+async def llm_generate_for_mentorship(prompt: str, user_id: str) -> str:
+    """Generate content via LLM for mentorship creation."""
+    settings = await db.settings.find_one({"user_id": user_id})
+    ollama_url = settings.get("ollama_url", OLLAMA_URL) if settings else OLLAMA_URL
+    ollama_model = settings.get("ollama_model", OLLAMA_MODEL) if settings else OLLAMA_MODEL
+    messages = [{"role": "system", "content": "Voce e um especialista em criacao de mentorias e infoprodutos."}, {"role": "user", "content": prompt}]
+    try:
+        full = ""
+        async for token in stream_ollama(messages, ollama_url, ollama_model):
+            full += token
+        return full
+    except Exception:
+        return await chat_emergent_fallback(messages)
+
+mentorship.init(db, get_current_user, llm_generate_for_mentorship)
+app.include_router(mentorship.router)
+
 # ─── Inter-Agent Communication Routes ────────────────────────────────────────
 @api_router.get("/agent-comms")
 async def get_agent_communications(request: Request):
@@ -1130,6 +1150,8 @@ async def startup():
     await db.approvals.create_index([("status", 1), ("created_at", -1)])
     await db.agent_messages.create_index([("to_agent", 1), ("status", 1)])
     await db.execution_log.create_index("executed_at")
+    await db.mentorships.create_index([("user_id", 1), ("created_at", -1)])
+    await db.knowledge_base.create_index([("user_id", 1)])
     # Start rules evaluation engine
     asyncio.create_task(rules_engine.rules_evaluation_loop())
     # Seed admin
