@@ -95,6 +95,15 @@ Build an AI agent application similar to OpenClaw - a personal virtual butler/as
 - Controle de Acesso: admin concede/revoga acesso por e-mail
 - Módulo separado (agency.py) para manutenibilidade
 
+### 2026-04-16 - Iteration 9 (Cron + Dashboard + Integrations + Inter-Agent)
+- Renomeado NovaClaw → "Mordomo Virtual" em todo o sistema (nome dinâmico do usuário substitui)
+- Cron job: Rules Engine roda a cada 60s avaliando regras ativas automaticamente
+- Dashboard com Recharts: gráficos de barras (gasto/receita por produto), pizza (distribuição), cards de métricas
+- Integração de plataformas pelo painel: Meta Ads, Google Ads, TikTok (cada usuário conecta suas próprias contas)
+- Comunicação entre agentes: sistema de mensagens inter-agent (from_agent → to_agent, payload, status)
+- Histórico de métricas para gráficos temporais
+- Sincronização de métricas das plataformas conectadas
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
