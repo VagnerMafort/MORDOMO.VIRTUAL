@@ -65,6 +65,12 @@ Build an AI agent application similar to OpenClaw - a personal virtual butler/as
 - Notes e Tasks API (CRUD completo)
 - 13 skills totais no dashboard (10 disponíveis + 3 requerem VPS)
 
+### 2026-04-16 - Iteration 5 (Hands-Free + Personalidade)
+- Modo Mãos Livres completo: tela fullscreen, reconhecimento de voz contínuo, envio automático, TTS auto-leitura, loop de conversa
+- Personalização do agente principal: campos de nome e personalidade nas configurações
+- Botão headphones no desktop (FAB) e mobile (header)
+- Conversas de voz com prefixo [Voz] no título
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
