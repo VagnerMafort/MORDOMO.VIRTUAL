@@ -1295,8 +1295,11 @@ async def startup():
     # Start background task worker
     asyncio.create_task(smart_llm.background_worker())
     # Seed admin
-    admin_email = os.environ.get("ADMIN_EMAIL", "admin@novaclaw.com")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
+    admin_email = os.environ.get("ADMIN_EMAIL")
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+    if not admin_email or not admin_password:
+        logger.warning("ADMIN_EMAIL/ADMIN_PASSWORD nao definidos no .env - seed de admin pulado")
+        return
     existing = await db.users.find_one({"email": admin_email})
     if not existing:
         hashed = hash_password(admin_password)

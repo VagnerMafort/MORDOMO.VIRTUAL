@@ -104,3 +104,13 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Test files (contain hardcoded test credentials)
+backend/tests/
+tests/
+test_reports/
+*.test.py
+test_*.py
+
+# Memory/credentials
+memory/test_credentials.md
