@@ -564,27 +564,65 @@ async def telegram_api(token: str, method: str, data: dict = None):
         return r.json()
 
 async def get_telegram_llm_response(user_id: str, user_text: str) -> str:
-    """Process a Telegram message through the LLM pipeline."""
+    """Process a Telegram message through the LLM pipeline with smart memory."""
+    import smart_llm
     settings = await db.settings.find_one({"user_id": user_id})
-    ollama_url = settings.get("ollama_url", OLLAMA_URL) if settings else OLLAMA_URL
-    ollama_model = settings.get("ollama_model", OLLAMA_MODEL) if settings else OLLAMA_MODEL
-    # Get recent telegram conversation history for context
-    recent = await db.telegram_messages.find(
-        {"user_id": user_id}
-    ).sort("created_at", -1).limit(10).to_list(10)
+    model, ollama_url, complexity = smart_llm.get_model_for_task(user_text, settings)
+
+    # Check cache
+    cached = await smart_llm.get_cached_response(user_text, f"tg_{user_id}")
+    if cached:
+        return cached
+
+    # Build context with memory from telegram messages
+    recent = await db.telegram_messages.find({"user_id": user_id}).sort("created_at", -1).limit(10).to_list(10)
     recent.reverse()
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+    # Also search for relevant old messages if referencing past
+    old_triggers = ["lembra", "falamos", "antes", "anterior", "voltando"]
+    extra_context = ""
+    if any(t in user_text.lower() for t in old_triggers):
+        keywords = smart_llm.extract_keywords(user_text)
+        if keywords:
+            old_filter = {"user_id": user_id, "$or": [{"content": {"$regex": kw, "$options": "i"}} for kw in keywords[:3]]}
+            old_msgs = await db.telegram_messages.find(old_filter).sort("created_at", -1).limit(5).to_list(5)
+            if old_msgs:
+                extra_context = "\n[Contexto anterior]: " + " | ".join([m["content"][:100] for m in old_msgs])
+
+    # Also pull from web conversations for cross-system memory
+    user_convs = await db.conversations.find({"user_id": user_id}, {"id": 1, "_id": 0}).to_list(20)
+    conv_ids = [c["id"] for c in user_convs]
+    if conv_ids:
+        keywords = smart_llm.extract_keywords(user_text)
+        if keywords:
+            cross = await db.messages.find({
+                "conversation_id": {"$in": conv_ids}, "role": "assistant",
+                "$or": [{"content": {"$regex": kw, "$options": "i"}} for kw in keywords[:2]]
+            }).limit(2).to_list(2)
+            if cross:
+                extra_context += "\n[Conhecimento de conversas web]: " + " | ".join([m["content"][:150] for m in cross])
+
+    system = SYSTEM_PROMPT
+    if extra_context:
+        system += extra_context
+
+    messages = [{"role": "system", "content": system}]
     for m in recent:
         messages.append({"role": m["role"], "content": m["content"]})
     messages.append({"role": "user", "content": user_text})
-    # Try Ollama first, fallback to Emergent
+
     try:
         full = ""
-        async for token in stream_ollama(messages, ollama_url, ollama_model):
+        async for token in stream_ollama(messages, ollama_url, model):
             full += token
+        if full:
+            await smart_llm.set_cached_response(user_text, full, f"tg_{user_id}", complexity)
         return full
     except Exception:
-        return await chat_emergent_fallback(messages)
+        result = await chat_emergent_fallback(messages)
+        if result:
+            await smart_llm.set_cached_response(user_text, result, f"tg_{user_id}", complexity)
+        return result
 
 @api_router.post("/telegram/connect")
 async def telegram_connect(body: TelegramConnectInput, request: Request):
@@ -1158,11 +1196,54 @@ async def memory_stats(request: Request):
     summaries_count = await db.conversation_summaries.count_documents({})
     tasks_pending = await db.background_tasks.count_documents({"status": "queued"})
     tasks_done = await db.background_tasks.count_documents({"status": "completed"})
+    total_messages = await db.messages.count_documents({})
+    total_conversations = await db.conversations.count_documents({})
+    total_users = await db.users.count_documents({})
+    total_agents = await db.agents.count_documents({})
+    total_products = await db.products.count_documents({})
+    total_rules = await db.rules.count_documents({"active": True})
+    total_mentorships = await db.mentorships.count_documents({})
+
+    # System info
+    import platform, shutil, os
+    disk = shutil.disk_usage("/")
+    try:
+        with open("/proc/meminfo") as f:
+            meminfo = f.read()
+        mem_total = int([l for l in meminfo.split("\n") if "MemTotal" in l][0].split()[1]) // 1024
+        mem_avail = int([l for l in meminfo.split("\n") if "MemAvailable" in l][0].split()[1]) // 1024
+        mem_used = mem_total - mem_avail
+    except Exception:
+        mem_total = mem_used = mem_avail = 0
+
+    # Response time tracking
+    recent_logs = await db.execution_log.find({}).sort("executed_at", -1).limit(10).to_list(10)
+
     return {
         "cache_entries": cache_count,
         "conversation_summaries": summaries_count,
         "tasks_pending": tasks_pending,
         "tasks_completed": tasks_done,
+        "total_messages": total_messages,
+        "total_conversations": total_conversations,
+        "total_users": total_users,
+        "total_agents": total_agents,
+        "total_products": total_products,
+        "active_rules": total_rules,
+        "total_mentorships": total_mentorships,
+        "system": {
+            "os": platform.system(),
+            "python": platform.python_version(),
+            "ram_total_mb": mem_total,
+            "ram_used_mb": mem_used,
+            "ram_available_mb": mem_avail,
+            "ram_percent": round((mem_used / mem_total * 100), 1) if mem_total > 0 else 0,
+            "disk_total_gb": round(disk.total / (1024**3), 1),
+            "disk_used_gb": round(disk.used / (1024**3), 1),
+            "disk_free_gb": round(disk.free / (1024**3), 1),
+            "disk_percent": round(disk.used / disk.total * 100, 1),
+        },
+        "recent_executions": len(recent_logs),
     }
 
 @api_router.get("/system/task/{task_id}")

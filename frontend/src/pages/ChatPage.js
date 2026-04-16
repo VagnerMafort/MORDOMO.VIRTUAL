@@ -8,6 +8,7 @@ import AgentManager from '@/components/AgentManager';
 import AgencyPanel from '@/components/AgencyPanel';
 import AgencyDashboard from '@/components/AgencyDashboard';
 import MentorshipPanel from '@/components/MentorshipPanel';
+import MonitorPanel from '@/components/MonitorPanel';
 import HandsFreeMode from '@/components/HandsFreeMode';
 import WakeWordListener from '@/components/WakeWordListener';
 import { Menu, Headphones } from 'lucide-react';
@@ -24,6 +25,7 @@ export default function ChatPage() {
   const [showAgency, setShowAgency] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [showMentorship, setShowMentorship] = useState(false);
+  const [showMonitor, setShowMonitor] = useState(false);
   const [agentName, setAgentName] = useState('Mordomo Virtual');
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
   const [hasAgencyAccess, setHasAgencyAccess] = useState(false);
@@ -126,6 +128,7 @@ export default function ChatPage() {
           onOpenAgents={() => { setShowAgents(true); setSidebarOpen(false); }}
           onOpenAgency={hasAgencyAccess ? () => { setShowAgency(true); setSidebarOpen(false); } : null}
           onOpenMentorship={() => { setShowMentorship(true); setSidebarOpen(false); }}
+          onOpenMonitor={() => { setShowMonitor(true); setSidebarOpen(false); }}
         />
       </div>
 
@@ -175,6 +178,7 @@ export default function ChatPage() {
       {showAgency && <AgencyPanel onClose={() => setShowAgency(false)} agentName={agentName} onOpenDashboard={() => { setShowAgency(false); setShowDashboard(true); }} />}
       {showDashboard && <AgencyDashboard onClose={() => setShowDashboard(false)} agentName={agentName} />}
       {showMentorship && <MentorshipPanel onClose={() => setShowMentorship(false)} />}
+      {showMonitor && <MonitorPanel onClose={() => setShowMonitor(false)} />}
       {/* Hands-free Mode */}
       {showHandsFree && <HandsFreeMode onClose={() => { setShowHandsFree(false); setWakeWordEnabled(prev => prev); fetchConversations(); }} agentName={agentName} />}
       {/* Wake Word Listener (runs in background) */}
