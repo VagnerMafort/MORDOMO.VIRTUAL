@@ -263,6 +263,8 @@ export default function SettingsPanel({ onClose }) {
       const { data } = await api.put('/settings', {
         ollama_url: settings.ollama_url,
         ollama_model: settings.ollama_model,
+        ollama_model_fast: settings.ollama_model_fast,
+        ollama_model_smart: settings.ollama_model_smart,
         tts_enabled: settings.tts_enabled,
         tts_language: settings.tts_language,
         agent_name: settings.agent_name,
@@ -386,28 +388,46 @@ export default function SettingsPanel({ onClose }) {
                       placeholder="http://localhost:11434"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs mb-1.5" style={{ color: 'var(--text-secondary)' }}>Modelo</label>
-                    <input
-                      data-testid="ollama-model-input"
-                      value={settings.ollama_model || ''}
-                      onChange={e => setSettings({ ...settings, ollama_model: e.target.value })}
-                      className="w-full py-2.5 px-3 text-sm outline-none font-mono"
-                      style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-                      placeholder="qwen2.5:32b"
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                        Modelo Rapido <span className="text-xs" style={{ color: 'var(--success)' }}>(chat)</span>
+                      </label>
+                      <input
+                        value={settings.ollama_model_fast || ''}
+                        onChange={e => setSettings({ ...settings, ollama_model_fast: e.target.value })}
+                        className="w-full py-2.5 px-3 text-sm outline-none font-mono"
+                        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                        placeholder="qwen2.5:7b"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                        Modelo Inteligente <span className="text-xs" style={{ color: 'var(--accent)' }}>(complexo)</span>
+                      </label>
+                      <input
+                        data-testid="ollama-model-input"
+                        value={settings.ollama_model_smart || settings.ollama_model || ''}
+                        onChange={e => setSettings({ ...settings, ollama_model_smart: e.target.value, ollama_model: e.target.value })}
+                        className="w-full py-2.5 px-3 text-sm outline-none font-mono"
+                        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                        placeholder="qwen2.5:32b"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Model recommendations */}
               <div className="p-3" style={{ background: 'var(--terminal-bg)', border: '1px solid var(--border-subtle)' }}>
-                <p className="text-xs font-mono mb-2" style={{ color: 'var(--terminal-text)' }}>Modelos recomendados (48GB RAM, sem GPU):</p>
-                <div className="flex flex-col gap-1 text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
-                  <p>qwen2.5:32b-q4_K_M  ~20GB - Recomendado</p>
-                  <p>qwen2.5:14b-q4_K_M  ~10GB - Equilibrado</p>
-                  <p>mistral:7b-q4_K_M   ~5GB  - Leve e rapido</p>
+                <p className="text-xs font-mono mb-2" style={{ color: 'var(--accent)' }}>Sistema de Modelo Dual:</p>
+                <div className="flex flex-col gap-1 text-xs font-mono" style={{ color: 'var(--terminal-text)' }}>
+                  <p>Rapido (7B)  - Chat, perguntas simples  ~3-5s</p>
+                  <p>Inteligente (32B) - Mentorias, analises  ~15-30s</p>
                 </div>
+                <p className="text-xs font-mono mt-2" style={{ color: 'var(--text-tertiary)' }}>
+                  O sistema detecta automaticamente a complexidade e escolhe o modelo ideal.
+                </p>
               </div>
 
               {/* Voice Section */}

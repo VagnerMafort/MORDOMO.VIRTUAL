@@ -90,6 +90,8 @@ class MessageCreate(BaseModel):
 class SettingsUpdate(BaseModel):
     ollama_url: Optional[str] = None
     ollama_model: Optional[str] = None
+    ollama_model_fast: Optional[str] = None
+    ollama_model_smart: Optional[str] = None
     tts_enabled: Optional[bool] = None
     tts_language: Optional[str] = None
     skills_enabled: Optional[List[str]] = None
@@ -807,57 +809,76 @@ async def send_message(conv_id: str, body: MessageCreate, request: Request):
         "id": user_msg_id, "conversation_id": conv_id,
         "role": "user", "content": body.content, "created_at": now
     })
-    # Update conversation title if first message
     msg_count = await db.messages.count_documents({"conversation_id": conv_id})
     if msg_count <= 1:
         title = body.content[:50] + ("..." if len(body.content) > 50 else "")
         await db.conversations.update_one({"id": conv_id}, {"$set": {"title": title, "updated_at": now}})
-    # Get history
-    history = await db.messages.find({"conversation_id": conv_id}, {"_id": 0}).sort("created_at", 1).to_list(100)
-    # Get user settings
-    settings = await db.settings.find_one({"user_id": user["_id"]})
-    ollama_url = settings.get("ollama_url", OLLAMA_URL) if settings else OLLAMA_URL
-    ollama_model = settings.get("ollama_model", OLLAMA_MODEL) if settings else OLLAMA_MODEL
 
-    # Determine system prompt: agent > custom personality > default
+    settings = await db.settings.find_one({"user_id": user["_id"]})
+
+    # Smart model selection
+    import smart_llm
+    model, ollama_url, complexity = smart_llm.get_model_for_task(body.content, settings)
+
+    # Check cache first
+    cached = await smart_llm.get_cached_response(body.content)
+
+    # Determine system prompt
     custom_prompt = None
     if conv.get("agent_id"):
         agent = await db.agents.find_one({"id": conv["agent_id"]})
         if agent and agent.get("system_prompt"):
             custom_prompt = agent["system_prompt"]
     elif settings and settings.get("agent_personality"):
-        # Build custom prompt with user's personality + skills
-        agent_name = settings.get("agent_name", "NovaClaw")
+        agent_name = settings.get("agent_name", "Mordomo Virtual")
         personality = settings["agent_personality"]
         custom_prompt = f"Voce e o {agent_name}. {personality}\n\n" + SYSTEM_PROMPT.split("## SUAS HABILIDADES", 1)[-1] if "## SUAS HABILIDADES" in SYSTEM_PROMPT else f"Voce e o {agent_name}. {personality}\n\nResponda sempre em portugues brasileiro."
 
-    messages = build_messages(history[:-1], body.content, custom_prompt)
+    # Build context with smart memory
+    memory_context = await smart_llm.build_memory_context(conv_id, body.content, user["_id"])
+
+    # Build final messages
+    messages = [{"role": "system", "content": custom_prompt or SYSTEM_PROMPT}]
+    messages.extend(memory_context)
+    messages.append({"role": "user", "content": body.content})
 
     ai_msg_id = str(uuid.uuid4())
 
     async def event_stream():
         full_response = ""
-        try:
-            async for token in stream_ollama(messages, ollama_url, ollama_model):
-                full_response += token
-                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
-        except Exception as e:
-            logger.info(f"Ollama unavailable ({e}), using fallback...")
-            yield f"data: {json.dumps({'type': 'status', 'content': 'Usando modelo de fallback...'})}\n\n"
-            response_text = await chat_emergent_fallback(messages)
-            # Check for skill calls
-            response_text, skill_results = await process_skill_calls(response_text, user["_id"])
-            for sr in skill_results:
-                yield f"data: {json.dumps({'type': 'skill', 'skill': sr['skill'], 'result': sr['result']})}\n\n"
-            # Stream the response in chunks to simulate streaming
-            for i in range(0, len(response_text), 4):
-                chunk = response_text[i:i+4]
+        # Send model info
+        model_label = "rapido" if complexity == "fast" else "inteligente"
+        model_short = model.split(":")[0]
+        yield f"data: {json.dumps({'type': 'status', 'content': f'Modelo {model_label} ({model_short})'})}\n\n"
+
+        # Use cache if available
+        if cached:
+            yield f"data: {json.dumps({'type': 'status', 'content': 'Resposta do cache'})}\n\n"
+            for i in range(0, len(cached), 6):
+                chunk = cached[i:i+6]
                 full_response += chunk
                 yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
-                await asyncio.sleep(0.015)
+                await asyncio.sleep(0.01)
+        else:
+            try:
+                async for token in stream_ollama(messages, ollama_url, model):
+                    full_response += token
+                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+            except Exception as e:
+                logger.info(f"Ollama unavailable ({e}), using fallback...")
+                yield f"data: {json.dumps({'type': 'status', 'content': 'Usando fallback...'})}\n\n"
+                response_text = await chat_emergent_fallback(messages)
+                response_text, skill_results = await process_skill_calls(response_text, user["_id"])
+                for sr in skill_results:
+                    yield f"data: {json.dumps({'type': 'skill', 'skill': sr['skill'], 'result': sr['result']})}\n\n"
+                for i in range(0, len(response_text), 4):
+                    chunk = response_text[i:i+4]
+                    full_response += chunk
+                    yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+                    await asyncio.sleep(0.015)
 
-        # Check for skill calls in streamed response
-        if full_response and not full_response.startswith(""):
+        # Process skills
+        if full_response:
             processed, skill_results = await process_skill_calls(full_response, user["_id"])
             if skill_results:
                 full_response = processed
@@ -870,6 +891,14 @@ async def send_message(conv_id: str, body: MessageCreate, request: Request):
             "role": "assistant", "content": full_response, "created_at": datetime.now(timezone.utc).isoformat()
         })
         await db.conversations.update_one({"id": conv_id}, {"$set": {"updated_at": datetime.now(timezone.utc).isoformat()}})
+
+        # Cache response
+        if not cached and full_response:
+            await smart_llm.set_cached_response(body.content, full_response, "", complexity)
+
+        # Update conversation summary every 5 messages
+        await smart_llm.maybe_create_summary(conv_id, user["_id"])
+
         yield f"data: {json.dumps({'type': 'done', 'message_id': ai_msg_id})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -1073,6 +1102,7 @@ import rules_engine
 rules_engine.init(db)
 
 # Mentorship module
+# Mentorship module
 import mentorship
 
 async def llm_generate_for_mentorship(prompt: str, user_id: str) -> str:
@@ -1091,6 +1121,10 @@ async def llm_generate_for_mentorship(prompt: str, user_id: str) -> str:
 
 mentorship.init(db, get_current_user, llm_generate_for_mentorship)
 app.include_router(mentorship.router)
+
+# Smart LLM
+import smart_llm
+smart_llm.init(db, OLLAMA_URL, "qwen2.5:7b", OLLAMA_MODEL)
 
 # ─── Inter-Agent Communication Routes ────────────────────────────────────────
 @api_router.get("/agent-comms")
@@ -1116,6 +1150,25 @@ async def get_agent_inbox(agent_id: str, request: Request):
     user = await get_current_user(request)
     msgs = await rules_engine.get_agent_inbox(agent_id)
     return msgs
+
+@api_router.get("/system/memory-stats")
+async def memory_stats(request: Request):
+    user = await get_current_user(request)
+    cache_count = await db.response_cache.count_documents({})
+    summaries_count = await db.conversation_summaries.count_documents({})
+    tasks_pending = await db.background_tasks.count_documents({"status": "queued"})
+    tasks_done = await db.background_tasks.count_documents({"status": "completed"})
+    return {
+        "cache_entries": cache_count,
+        "conversation_summaries": summaries_count,
+        "tasks_pending": tasks_pending,
+        "tasks_completed": tasks_done,
+    }
+
+@api_router.get("/system/task/{task_id}")
+async def get_task(task_id: str, request: Request):
+    user = await get_current_user(request)
+    return smart_llm.get_task_status(task_id)
 
 # Include api_router AFTER all routes are defined
 app.include_router(api_router)
@@ -1152,8 +1205,14 @@ async def startup():
     await db.execution_log.create_index("executed_at")
     await db.mentorships.create_index([("user_id", 1), ("created_at", -1)])
     await db.knowledge_base.create_index([("user_id", 1)])
+    await db.response_cache.create_index("key", unique=True)
+    await db.response_cache.create_index("created_at")
+    await db.conversation_summaries.create_index("conversation_id", unique=True)
+    await db.background_tasks.create_index("status")
     # Start rules evaluation engine
     asyncio.create_task(rules_engine.rules_evaluation_loop())
+    # Start background task worker
+    asyncio.create_task(smart_llm.background_worker())
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@novaclaw.com")
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
