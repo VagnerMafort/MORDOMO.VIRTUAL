@@ -113,6 +113,15 @@ Build an AI agent application similar to OpenClaw - a personal virtual butler/as
 - PUT /products/{id}/metrics auto-cria snapshot no histórico
 - 5 abas no Dashboard: Visão Geral, Timeline, Execuções, Integrações, Agentes
 
+### 2026-04-16 - Iteration 11 (Criador de Mentorias)
+- Sistema completo de criação de mentorias via IA
+- Upload de conhecimento (txt, md, csv) + campo de texto livre
+- Geração automática: nome, promessa, módulos (6+), aulas (4+/módulo), exercícios, bônus, metodologia, FAQ, copy de vendas, precificação
+- CRUD de mentorias e base de conhecimento
+- Agentes MOIRA e NOVA atualizados com capabilities de mentoria
+- Painel dedicado com abas "Criar Mentoria" e "Mentorias"
+- Botão "Criar Mentoria" no sidebar
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
