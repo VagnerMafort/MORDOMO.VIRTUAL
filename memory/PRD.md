@@ -129,6 +129,14 @@ Build an AI agent application similar to OpenClaw - a personal virtual butler/as
 - Export DOCX: python-docx gera Word com headings, bullets, quebra de página por módulo
 - Botões PDF/DOCX no editor para download direto
 
+### 2026-04-16 - Iteration 13 (Independência Total + Performance + Memória)
+- **Modelo Dual**: 7B rápido (chat ~3-5s) + 32B inteligente (complexo ~15-30s), detecção automática de complexidade
+- **Cache de respostas**: Perguntas similares retornam do cache em milissegundos (SHA256 hash, TTL 1h simples / 24h complexo)
+- **Fila de background**: Tarefas pesadas (mentorias, relatórios) processadas em background
+- **Memória inteligente**: Resumo a cada 5 mensagens, busca de tópicos antigos por keywords, busca cross-conversation
+- **Docker completo**: docker-compose.yml (MongoDB + Ollama + Backend + Frontend), Dockerfiles, deploy.sh, nginx.conf
+- **100% independente**: Roda na VPS sem depender de nenhuma plataforma externa
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
