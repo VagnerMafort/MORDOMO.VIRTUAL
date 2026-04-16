@@ -29,7 +29,7 @@ export default function Sidebar({ conversations, activeConvId, onSelect, onCreat
           <Zap className="w-4 h-4" style={{ color: 'var(--accent-text)' }} />
         </div>
         <div className="min-w-0">
-          <h2 className="text-sm font-bold tracking-tight truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>NovaClaw</h2>
+          <h2 className="text-sm font-bold tracking-tight truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>Mordomo Virtual</h2>
           <p className="text-xs truncate" style={{ color: 'var(--text-tertiary)' }}>{user?.name || user?.email}</p>
         </div>
       </div>
