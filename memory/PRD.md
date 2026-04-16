@@ -71,6 +71,13 @@ Build an AI agent application similar to OpenClaw - a personal virtual butler/as
 - Botão headphones no desktop (FAB) e mobile (header)
 - Conversas de voz com prefixo [Voz] no título
 
+### 2026-04-16 - Iteration 6 (Wake Word Activation)
+- Ativação por voz "Hey {nome do agente}" - escuta passiva contínua
+- Suporte a variações: "hey", "ei", "oi", "hei" + nome do agente
+- Indicador visual no canto inferior esquerdo (bolinha verde pulsando)
+- Terminal info box explicativo quando ativado
+- Configuração wake_word_enabled persistida no backend
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
