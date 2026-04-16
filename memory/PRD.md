@@ -122,6 +122,13 @@ Build an AI agent application similar to OpenClaw - a personal virtual butler/as
 - Painel dedicado com abas "Criar Mentoria" e "Mentorias"
 - Botão "Criar Mentoria" no sidebar
 
+### 2026-04-16 - Iteration 12 (Editor Visual + Export PDF/DOCX)
+- Editor visual de módulos: cards expansíveis com módulos e aulas, edição inline, adicionar/remover módulos e aulas
+- Parse automático: conteúdo gerado pela IA convertido em módulos estruturados (6+ módulos, 4-6 aulas cada)
+- Export PDF: WeasyPrint gera PDF profissional A4 com design, borda amarela em módulos, capa
+- Export DOCX: python-docx gera Word com headings, bullets, quebra de página por módulo
+- Botões PDF/DOCX no editor para download direto
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
