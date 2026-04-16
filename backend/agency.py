@@ -242,16 +242,29 @@ async def approve_action(approval_id: str, request: Request):
     approval = await db.approvals.find_one({"id": approval_id})
     if not approval:
         raise HTTPException(status_code=404, detail="Aprovacao nao encontrada")
+    if approval.get("status") != "pending":
+        raise HTTPException(status_code=400, detail="Aprovacao ja processada")
+
     await db.approvals.update_one({"id": approval_id}, {"$set": {
         "status": "approved", "approved_by": user["_id"],
         "approved_at": datetime.now(timezone.utc).isoformat()
     }})
-    # TODO: Execute the approved action
+
+    # Execute the approved actions on platform
+    import rules_engine
+    rule = await db.rules.find_one({"id": approval.get("rule_id", "")})
+    execution_results = []
+    if rule:
+        for action in approval.get("actions", []):
+            result = await rules_engine.execute_action(action, rule, {"product_name": approval.get("product_name", ""), "results": []})
+            execution_results.append(result)
+
     await db.approval_log.insert_one({
         "approval_id": approval_id, "action": "approved",
+        "execution_results": execution_results,
         "user_id": user["_id"], "timestamp": datetime.now(timezone.utc).isoformat()
     })
-    return {"message": "Acao aprovada e executada"}
+    return {"message": "Acao aprovada e executada", "results": execution_results}
 
 @router.post("/approvals/{approval_id}/reject")
 async def reject_action(approval_id: str, request: Request):
@@ -434,3 +447,41 @@ async def record_metrics(prod_id: str, request: Request):
     await db.metrics_history.insert_one(snapshot)
     snapshot.pop("_id", None)
     return snapshot
+
+
+# ─── Execution Log ───────────────────────────────────────────────────────────
+@router.get("/execution-log")
+async def get_execution_log(request: Request):
+    user = await get_current_user(request)
+    await check_agency_access(user)
+    logs = await db.execution_log.find({}, {"_id": 0}).sort("executed_at", -1).limit(50).to_list(50)
+    return logs
+
+# ─── Update Product Metrics ──────────────────────────────────────────────────
+class MetricsUpdate(BaseModel):
+    ctr: Optional[float] = None
+    cpc: Optional[float] = None
+    cpa: Optional[float] = None
+    roas: Optional[float] = None
+    conversions: Optional[int] = None
+    spend: Optional[float] = None
+    revenue: Optional[float] = None
+
+@router.put("/products/{prod_id}/metrics")
+async def update_product_metrics(prod_id: str, body: MetricsUpdate, request: Request):
+    user = await get_current_user(request)
+    await check_agency_access(user)
+    product = await db.products.find_one({"id": prod_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Produto nao encontrado")
+    metrics = product.get("metrics", {})
+    update = {k: v for k, v in body.model_dump().items() if v is not None}
+    metrics.update(update)
+    await db.products.update_one({"id": prod_id}, {"$set": {"metrics": metrics}})
+    # Auto-record history snapshot
+    await db.metrics_history.insert_one({
+        "product_id": prod_id,
+        "metrics": metrics,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    return {"metrics": metrics}

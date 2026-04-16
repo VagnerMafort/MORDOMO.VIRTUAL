@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell
+  LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import {
   X, ArrowLeft, TrendingUp, DollarSign, Users, BarChart3,
-  RefreshCw, Plug, Unlink, Link
+  RefreshCw, Plug, Unlink, Link, Activity, CheckCircle, XCircle, Clock
 } from 'lucide-react';
 
 const COLORS = ['#FFD600', '#00C8FF', '#22C55E', '#EF4444', '#A855F7', '#F97316'];
@@ -84,6 +84,9 @@ export default function AgencyDashboard({ onClose, agentName }) {
   const [report, setReport] = useState(null);
   const [integrations, setIntegrations] = useState([]);
   const [agentComms, setAgentComms] = useState([]);
+  const [execLog, setExecLog] = useState([]);
+  const [metricsHistory, setMetricsHistory] = useState({});
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadAll(); }, []);
@@ -91,14 +94,34 @@ export default function AgencyDashboard({ onClose, agentName }) {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [rep, intg, comms] = await Promise.all([
+      const [rep, intg, comms, logs] = await Promise.all([
         api.get('/agency/reports/agency').catch(() => ({ data: null })),
         api.get('/agency/integrations').catch(() => ({ data: [] })),
         api.get('/agent-comms').catch(() => ({ data: [] })),
+        api.get('/agency/execution-log').catch(() => ({ data: [] })),
       ]);
       setReport(rep.data);
       setIntegrations(intg.data);
       setAgentComms(comms.data);
+      setExecLog(logs.data);
+      // Load metrics history for each product
+      if (rep.data?.products) {
+        const histMap = {};
+        for (const prod of rep.data.products) {
+          try {
+            const h = await api.get(`/agency/metrics/${prod.id}/history`);
+            histMap[prod.id] = (h.data || []).map(d => ({
+              ...d.metrics,
+              time: new Date(d.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+              date: new Date(d.timestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+            }));
+          } catch {}
+        }
+        setMetricsHistory(histMap);
+        if (rep.data.products.length > 0 && !selectedProduct) {
+          setSelectedProduct(rep.data.products[0].id);
+        }
+      }
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -120,8 +143,10 @@ export default function AgencyDashboard({ onClose, agentName }) {
 
   const tabs = [
     { id: 'overview', label: 'Visao Geral' },
+    { id: 'timeline', label: 'Timeline' },
+    { id: 'executions', label: `Execucoes (${execLog.length})` },
     { id: 'integrations', label: 'Integracoes' },
-    { id: 'agents', label: 'Agentes Ativos' },
+    { id: 'agents', label: 'Agentes' },
   ];
 
   return (
@@ -211,6 +236,112 @@ export default function AgencyDashboard({ onClose, agentName }) {
                   <p className="text-xl font-bold" style={{ color: report.pending_approvals > 0 ? 'var(--accent)' : 'var(--text-primary)' }}>{report.pending_approvals}</p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {tab === 'timeline' && (
+            <div className="flex flex-col gap-4">
+              {/* Product selector */}
+              {products.length > 0 && (
+                <select value={selectedProduct || ''} onChange={e => setSelectedProduct(e.target.value)}
+                  className="py-2 px-3 text-sm outline-none"
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}>
+                  {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              )}
+
+              {/* Line chart - Spend & Revenue over time */}
+              {selectedProduct && (metricsHistory[selectedProduct] || []).length > 0 ? (
+                <>
+                  <div className="p-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                    <p className="text-xs font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>Gasto vs Receita (Timeline)</p>
+                    <div style={{ height: 250 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={metricsHistory[selectedProduct]}>
+                          <defs>
+                            <linearGradient id="gradSpend" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#EF4444" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
+                            </linearGradient>
+                            <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#22C55E" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#22C55E" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                          <XAxis dataKey="time" tick={{ fill: '#71717A', fontSize: 10 }} />
+                          <YAxis tick={{ fill: '#71717A', fontSize: 10 }} />
+                          <Tooltip contentStyle={{ background: '#1A1A1A', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: 12 }} />
+                          <Legend wrapperStyle={{ fontSize: 11 }} />
+                          <Area type="monotone" dataKey="spend" name="Gasto" stroke="#EF4444" fill="url(#gradSpend)" strokeWidth={2} />
+                          <Area type="monotone" dataKey="revenue" name="Receita" stroke="#22C55E" fill="url(#gradRevenue)" strokeWidth={2} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  <div className="p-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                    <p className="text-xs font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>ROAS e CPA (Timeline)</p>
+                    <div style={{ height: 200 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={metricsHistory[selectedProduct]}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                          <XAxis dataKey="time" tick={{ fill: '#71717A', fontSize: 10 }} />
+                          <YAxis tick={{ fill: '#71717A', fontSize: 10 }} />
+                          <Tooltip contentStyle={{ background: '#1A1A1A', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: 12 }} />
+                          <Legend wrapperStyle={{ fontSize: 11 }} />
+                          <Line type="monotone" dataKey="roas" name="ROAS" stroke="#FFD600" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="cpa" name="CPA" stroke="#A855F7" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="ctr" name="CTR" stroke="#00C8FF" strokeWidth={2} dot={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <Activity className="w-8 h-8 mx-auto mb-3" style={{ color: 'var(--text-tertiary)' }} />
+                  <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Sem dados historicos ainda.</p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                    Atualize as metricas do produto ou conecte uma plataforma para comecar a coletar dados.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'executions' && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+                Historico de acoes executadas pelo motor de regras e aprovacoes:
+              </p>
+              {execLog.length === 0 && (
+                <p className="text-xs text-center py-6" style={{ color: 'var(--text-tertiary)' }}>Nenhuma execucao registrada.</p>
+              )}
+              {execLog.map(log => (
+                <div key={log.id} className="p-3"
+                  style={{ background: 'var(--bg-elevated)', border: `1px solid ${log.result?.success ? 'rgba(34,197,94,0.2)' : 'var(--border-subtle)'}` }}>
+                  <div className="flex items-center gap-2 mb-1">
+                    {log.result?.success ? (
+                      <CheckCircle className="w-4 h-4" style={{ color: 'var(--success)' }} />
+                    ) : (
+                      <XCircle className="w-4 h-4" style={{ color: 'var(--error)' }} />
+                    )}
+                    <p className="text-sm font-medium">{log.rule_name || log.action?.type || 'Acao'}</p>
+                    <span className="text-xs ml-auto" style={{ color: 'var(--text-tertiary)' }}>
+                      {new Date(log.executed_at).toLocaleString('pt-BR')}
+                    </span>
+                  </div>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    {log.result?.details || JSON.stringify(log.action).slice(0, 100)}
+                  </p>
+                  {log.result?.platform_result && (
+                    <p className="text-xs font-mono mt-1" style={{ color: 'var(--info)' }}>
+                      Plataforma: {log.result.platform_result.executed ? 'Executado' : 'Nao executado'} - {log.result.platform_result.reason || log.result.platform_result.note || ''}
+                    </p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 

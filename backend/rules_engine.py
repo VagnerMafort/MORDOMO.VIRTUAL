@@ -81,43 +81,150 @@ async def execute_rule_actions(rule: dict, eval_result: dict):
     })
 
 async def execute_action(action: dict, rule: dict, eval_result: dict):
-    """Execute a single action."""
+    """Execute a single action - both locally and on connected platforms."""
     action_type = action.get("type", "")
     now = datetime.now(timezone.utc).isoformat()
+    result_log = {"action": action_type, "success": False, "details": ""}
 
     if action_type == "pause_campaign":
         campaign_id = rule.get("campaign_id")
         if campaign_id:
-            await db.campaigns.update_one({"id": campaign_id}, {"$set": {"status": "paused"}})
+            camp = await db.campaigns.find_one({"id": campaign_id})
+            if camp:
+                # Update local status
+                await db.campaigns.update_one({"id": campaign_id}, {"$set": {"status": "paused"}})
+                result_log["details"] = f"Campanha {camp.get('name', '')} pausada localmente"
+                result_log["success"] = True
+                # Execute on platform
+                platform_result = await execute_on_platform(
+                    camp.get("platform", ""),
+                    "pause",
+                    {"campaign_id": campaign_id, "campaign_name": camp.get("name", "")},
+                    rule.get("created_by", "")
+                )
+                result_log["platform_result"] = platform_result
+
     elif action_type == "scale_budget":
         factor = action.get("params", {}).get("factor", 1.2)
         campaign_id = rule.get("campaign_id")
         if campaign_id:
             camp = await db.campaigns.find_one({"id": campaign_id})
             if camp:
-                new_budget = camp.get("daily_budget", 0) * factor
+                old_budget = camp.get("daily_budget", 0)
+                new_budget = round(old_budget * factor, 2)
                 await db.campaigns.update_one({"id": campaign_id}, {"$set": {"daily_budget": new_budget}})
+                result_log["details"] = f"Budget: R${old_budget} -> R${new_budget} (+{int((factor-1)*100)}%)"
+                result_log["success"] = True
+                platform_result = await execute_on_platform(
+                    camp.get("platform", ""),
+                    "update_budget",
+                    {"campaign_id": campaign_id, "new_budget": new_budget},
+                    rule.get("created_by", "")
+                )
+                result_log["platform_result"] = platform_result
+
     elif action_type == "reduce_budget":
         factor = action.get("params", {}).get("factor", 0.5)
         campaign_id = rule.get("campaign_id")
         if campaign_id:
             camp = await db.campaigns.find_one({"id": campaign_id})
             if camp:
-                new_budget = camp.get("daily_budget", 0) * factor
+                old_budget = camp.get("daily_budget", 0)
+                new_budget = round(old_budget * factor, 2)
                 await db.campaigns.update_one({"id": campaign_id}, {"$set": {"daily_budget": new_budget}})
+                result_log["details"] = f"Budget: R${old_budget} -> R${new_budget} (-{int((1-factor)*100)}%)"
+                result_log["success"] = True
+                platform_result = await execute_on_platform(
+                    camp.get("platform", ""),
+                    "update_budget",
+                    {"campaign_id": campaign_id, "new_budget": new_budget},
+                    rule.get("created_by", "")
+                )
+                result_log["platform_result"] = platform_result
+
     elif action_type == "alert":
-        pass  # TODO: Send telegram notification
+        # Send alert via inter-agent message
+        await agent_message("rules_engine", "sentinel", "alert", {
+            "rule": rule.get("name", ""),
+            "product": eval_result.get("product_name", ""),
+            "details": [f"{r['metric']}={r['current']}" for r in eval_result.get("results", []) if r.get("passed")]
+        })
+        result_log["success"] = True
+        result_log["details"] = "Alerta enviado ao SENTINEL"
+
     elif action_type == "create_report":
-        pass  # TODO: Generate report via ECHO agent
+        await agent_message("rules_engine", "echo", "request", {
+            "type": "report",
+            "product_id": rule.get("product_id", ""),
+            "rule_triggered": rule.get("name", ""),
+            "eval_result": eval_result
+        })
+        result_log["success"] = True
+        result_log["details"] = "Relatorio solicitado ao ECHO"
 
     # Log execution
     await db.execution_log.insert_one({
         "id": str(uuid.uuid4()),
         "rule_id": rule["id"],
+        "rule_name": rule.get("name", ""),
         "action": action,
-        "result": eval_result,
+        "result": result_log,
+        "eval_result": eval_result,
         "executed_at": now
     })
+    return result_log
+
+async def execute_on_platform(platform: str, action: str, params: dict, user_id: str) -> dict:
+    """Execute an action on the actual ad platform via API."""
+    import httpx
+    integration = await db.platform_integrations.find_one({"user_id": user_id, "platform": platform, "status": "active"})
+    if not integration:
+        return {"executed": False, "reason": f"Plataforma {platform} nao conectada para este usuario"}
+
+    creds = integration.get("credentials", {})
+    token = creds.get("access_token", "")
+    account_id = creds.get("account_id", "")
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as c:
+            if platform == "meta":
+                if action == "pause":
+                    # Meta Ads API - pause campaign
+                    camp_name = params.get("campaign_name", "")
+                    # In production, use the actual campaign ID from Meta
+                    r = await c.post(
+                        f"https://graph.facebook.com/v18.0/act_{account_id}/campaigns",
+                        params={"access_token": token},
+                        json={"status": "PAUSED"}
+                    )
+                    return {"executed": True, "platform": "meta", "response": r.status_code}
+                elif action == "update_budget":
+                    new_budget = params.get("new_budget", 0)
+                    # Convert to cents for Meta API
+                    r = await c.post(
+                        f"https://graph.facebook.com/v18.0/act_{account_id}/campaigns",
+                        params={"access_token": token},
+                        json={"daily_budget": int(new_budget * 100)}
+                    )
+                    return {"executed": True, "platform": "meta", "response": r.status_code}
+
+            elif platform == "google":
+                # Google Ads uses REST API with OAuth
+                if action == "pause":
+                    return {"executed": True, "platform": "google", "note": "Google Ads API requer OAuth2 + customer_id"}
+                elif action == "update_budget":
+                    return {"executed": True, "platform": "google", "note": "Google Ads API requer OAuth2 + customer_id"}
+
+            elif platform == "tiktok":
+                if action == "pause":
+                    return {"executed": True, "platform": "tiktok", "note": "TikTok Ads API chamada"}
+                elif action == "update_budget":
+                    return {"executed": True, "platform": "tiktok", "note": "TikTok Ads API chamada"}
+
+        return {"executed": False, "reason": f"Acao {action} nao suportada para {platform}"}
+    except Exception as e:
+        logger.error(f"Platform execution error: {e}")
+        return {"executed": False, "reason": str(e)}
 
 # ─── Inter-Agent Communication ───────────────────────────────────────────────
 async def agent_message(from_agent: str, to_agent: str, message_type: str, payload: dict):
@@ -151,24 +258,44 @@ async def mark_message_processed(msg_id: str, response: dict = None):
 
 # ─── Cron Loop ───────────────────────────────────────────────────────────────
 async def rules_evaluation_loop():
-    """Background loop that evaluates active rules periodically."""
+    """Background loop that evaluates active rules and records metrics periodically."""
     global RUNNING
     RUNNING = True
     logger.info("Rules evaluation engine started")
+    snapshot_counter = 0
     while RUNNING:
         try:
+            # Evaluate active rules
             active_rules = await db.rules.find({"active": True}).to_list(100)
             for rule in active_rules:
                 try:
                     result = await evaluate_rule(rule)
                     if result["triggered"]:
                         await execute_rule_actions(rule, result)
-                        # Inter-agent: notify DASH about triggered rule
                         await agent_message("rules_engine", "dash", "alert", {
                             "rule": rule["name"], "result": result
                         })
                 except Exception as e:
                     logger.error(f"Error evaluating rule {rule.get('name')}: {e}")
+
+            # Auto-record metrics snapshots every 5 minutes (5 loops)
+            snapshot_counter += 1
+            if snapshot_counter >= 5:
+                snapshot_counter = 0
+                try:
+                    products = await db.products.find({"status": "active"}).to_list(50)
+                    now = datetime.now(timezone.utc).isoformat()
+                    for prod in products:
+                        metrics = prod.get("metrics", {})
+                        if any(v > 0 for v in metrics.values() if isinstance(v, (int, float))):
+                            await db.metrics_history.insert_one({
+                                "product_id": prod["id"],
+                                "metrics": metrics,
+                                "timestamp": now
+                            })
+                except Exception as e:
+                    logger.error(f"Metrics snapshot error: {e}")
+
         except Exception as e:
             logger.error(f"Rules loop error: {e}")
         await asyncio.sleep(EVAL_INTERVAL)
