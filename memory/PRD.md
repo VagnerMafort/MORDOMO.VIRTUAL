@@ -85,6 +85,16 @@ Build an AI agent application similar to OpenClaw - a personal virtual butler/as
 - Hands-free redesenhado: fundo azul escuro (#020810), espectro de luz circular com 3 anéis que giram e pulsam com a voz via Web Audio API
 - AgentManager com busca e organização por squads
 
+### 2026-04-16 - Iteration 8 (Marketing Agency Panel)
+- Painel da Agência ({nome} Agency) com controle de acesso (admin-only + concessão manual)
+- Sistema de Produtos (unidade central): CRUD com métricas (CTR, CPC, CPA, ROAS, conversões, gasto, receita)
+- Campanhas vinculadas a produtos com métricas por plataforma
+- Motor de Regras: condições (métrica + operador + valor) → ações (pausar, escalar, alertar, relatório) + aprovação humana opcional
+- Fila de Aprovação: pendente/aprovado/rejeitado com log de auditoria
+- Relatórios: nível agência e nível produto
+- Controle de Acesso: admin concede/revoga acesso por e-mail
+- Módulo separado (agency.py) para manutenibilidade
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
