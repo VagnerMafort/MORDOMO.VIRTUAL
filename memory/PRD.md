@@ -24,46 +24,47 @@ Build an AI agent application similar to OpenClaw - a personal virtual butler/as
 - [x] Agent skills system (10 skills)
 - [x] Settings panel (Ollama URL, model, TTS)
 - [x] Voice input (Web Speech API STT)
-- [x] PWA manifest for mobile install
+- [x] TTS auto-read responses toggle
+- [x] PWA manifest + service worker + icons
 - [x] Portuguese BR interface
 - [x] Dark theme (Swiss high-contrast)
+- [x] Credentials/API keys management panel
+- [x] PWA install instructions (Android/iOS/Desktop)
 
-## What's Been Implemented (2026-04-16)
-### Backend
+## What's Been Implemented
+
+### 2026-04-16 - Iteration 1 (MVP)
 - JWT auth (register, login, logout, me, refresh, brute force protection)
 - Conversations CRUD with per-user isolation
 - Messages with SSE streaming
-- 10 agent skills (web scraper, calculator, code runner, system info, datetime, file manager, browser automation, cron jobs, email manager, API caller)
+- 10 agent skills
 - Settings per-user (Ollama URL, model, TTS config)
-- Health endpoint
-
-### Frontend
-- Login/Register page with NovaClaw branding
 - ChatGPT-like layout (sidebar + chat area)
-- Conversation management (create, rename, delete)
-- Message display with markdown formatting
-- SSE streaming with typing indicator
-- Voice mode (Web Speech API STT)
-- Settings panel (Ollama config)
-- Skills dashboard with toggle functionality
+- Voice input mode (Web Speech API STT)
 - Responsive mobile layout (hamburger menu)
-- PWA manifest
+
+### 2026-04-16 - Iteration 2 (PWA + Credentials)
+- Credentials management panel (CRUD) - store Telegram tokens, API keys, SMTP, etc.
+- Full PWA support: manifest.json, service worker (sw.js), app icons (192/512), apple-touch-icon
+- PWA install instructions (Android, iPhone, Desktop)
+- TTS auto-read toggle on chat header
+- Safe-area padding for PWA standalone mode
+- Deploy guide for VPS with Docker/Ollama
 
 ## Prioritized Backlog
 
 ### P0 (Critical)
-- None (core MVP complete)
+- None (core features complete)
 
 ### P1 (Important)
-- Hands-free TTS auto-read responses (Web Speech Synthesis)
-- Conversation search
+- Telegram bot integration (use stored credentials)
+- Conversation search in sidebar
 - Message copy/delete
 - Export conversations
 
 ### P2 (Nice to have)
-- Telegram integration
 - WhatsApp integration
-- Multi-model support in settings
+- Multi-model support dropdown
 - Browser automation execution (Playwright)
 - Cron job scheduler UI
 - Email integration (IMAP/SMTP)
@@ -71,8 +72,8 @@ Build an AI agent application similar to OpenClaw - a personal virtual butler/as
 - User admin panel
 
 ## Next Tasks
-1. Add TTS auto-read for voice mode responses
+1. Integrate Telegram bot using stored credentials
 2. Add conversation search in sidebar
-3. Implement VPS deployment guide with Docker
-4. Add Telegram bot integration
-5. Implement actual browser automation skill with Playwright
+3. Create Dockerfile for easy VPS deployment
+4. Implement actual browser automation skill with Playwright
+5. Add message actions (copy, delete, regenerate)
