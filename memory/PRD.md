@@ -104,6 +104,15 @@ Build an AI agent application similar to OpenClaw - a personal virtual butler/as
 - Histórico de métricas para gráficos temporais
 - Sincronização de métricas das plataformas conectadas
 
+### 2026-04-16 - Iteration 10 (Dashboard Temporal + Execução Real)
+- Dashboard temporal: gráficos AreaChart (Gasto vs Receita com gradientes) e LineChart (ROAS, CPA, CTR) ao longo do tempo
+- Seletor de produto no timeline para alternar entre produtos
+- Execução real de ações aprovadas: quando aprovação é aceita, executa na plataforma conectada (Meta Ads API, Google Ads, TikTok)
+- Log de execuções com status (sucesso/falha), detalhes, resultado da plataforma
+- Auto-record de métricas: cron grava snapshots a cada 5 minutos para alimentar os gráficos
+- PUT /products/{id}/metrics auto-cria snapshot no histórico
+- 5 abas no Dashboard: Visão Geral, Timeline, Execuções, Integrações, Agentes
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
