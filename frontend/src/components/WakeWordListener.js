@@ -8,7 +8,7 @@ export default function WakeWordListener({ agentName, enabled, onActivated }) {
 
   useEffect(() => { enabledRef.current = enabled; }, [enabled]);
 
-  const wakePhrase = (agentName || 'NovaClaw').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const wakePhrase = (agentName || 'Mordomo').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
   const startPassiveListening = useCallback(() => {
     if (!enabledRef.current || !recognitionRef.current) return;
@@ -132,7 +132,7 @@ export default function WakeWordListener({ agentName, enabled, onActivated }) {
       <span className="text-xs font-mono" style={{
         color: status === 'detected' ? 'var(--accent-text)' : 'var(--text-tertiary)',
       }}>
-        {status === 'listening' ? `"Hey ${agentName || 'NovaClaw'}"` :
+        {status === 'listening' ? `"Hey ${agentName || 'Mordomo'}"` :
          status === 'detected' ? 'Ativado!' : 'Off'}
       </span>
     </div>

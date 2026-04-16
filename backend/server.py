@@ -158,7 +158,7 @@ async def register(body: RegisterInput):
         "user_id": user_id, "ollama_url": OLLAMA_URL, "ollama_model": OLLAMA_MODEL,
         "tts_enabled": True, "tts_language": "pt-BR",
         "skills_enabled": ["code_executor", "web_scraper", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
-        "agent_name": "NovaClaw",
+        "agent_name": "Mordomo Virtual",
         "agent_personality": ""
     })
     return {"user": {"id": user_id, "email": email, "name": body.name.strip(), "role": "user"}, "access_token": access, "refresh_token": refresh}
@@ -477,7 +477,7 @@ async def get_settings(request: Request):
             "ollama_model": OLLAMA_MODEL,
             "tts_enabled": True,
             "tts_language": "pt-BR",
-            "agent_name": "NovaClaw",
+            "agent_name": "Mordomo Virtual",
             "agent_personality": "",
             "skills_enabled": ["code_executor", "web_scraper", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
         }
@@ -1068,6 +1068,36 @@ import agency
 agency.init(db, get_current_user)
 app.include_router(agency.router)
 
+# Rules engine
+import rules_engine
+rules_engine.init(db)
+
+# ─── Inter-Agent Communication Routes ────────────────────────────────────────
+@api_router.get("/agent-comms")
+async def get_agent_communications(request: Request):
+    user = await get_current_user(request)
+    msgs = await db.agent_messages.find({}, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
+    return msgs
+
+@api_router.post("/agent-comms/send")
+async def send_agent_message(request: Request):
+    user = await get_current_user(request)
+    body = await request.json()
+    msg_id = await rules_engine.agent_message(
+        body.get("from_agent", "user"),
+        body.get("to_agent", "orion"),
+        body.get("message_type", "request"),
+        body.get("payload", {})
+    )
+    return {"id": msg_id, "message": "Mensagem enviada"}
+
+@api_router.get("/agent-comms/{agent_id}/inbox")
+async def get_agent_inbox(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    msgs = await rules_engine.get_agent_inbox(agent_id)
+    return msgs
+
+# Include api_router AFTER all routes are defined
 app.include_router(api_router)
 
 app.add_middleware(
@@ -1093,12 +1123,15 @@ async def startup():
     await db.agents.create_index([("user_id", 1)])
     await db.notes.create_index([("user_id", 1), ("created_at", -1)])
     await db.tasks.create_index([("user_id", 1), ("created_at", -1)])
-    # Agency indexes
     await db.agency_access.create_index("user_id", unique=True)
     await db.products.create_index("status")
     await db.campaigns.create_index("product_id")
     await db.rules.create_index([("product_id", 1), ("active", 1)])
     await db.approvals.create_index([("status", 1), ("created_at", -1)])
+    await db.agent_messages.create_index([("to_agent", 1), ("status", 1)])
+    await db.execution_log.create_index("executed_at")
+    # Start rules evaluation engine
+    asyncio.create_task(rules_engine.rules_evaluation_loop())
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@novaclaw.com")
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
@@ -1115,7 +1148,7 @@ async def startup():
             "user_id": user_id, "ollama_url": OLLAMA_URL, "ollama_model": OLLAMA_MODEL,
             "tts_enabled": True, "tts_language": "pt-BR",
             "skills_enabled": ["code_executor", "web_scraper", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
-        "agent_name": "NovaClaw",
+        "agent_name": "Mordomo Virtual",
         "agent_personality": ""
         })
         logger.info(f"Admin criado: {admin_email}")
@@ -1132,4 +1165,5 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
+    rules_engine.stop()
     client.close()

@@ -130,7 +130,7 @@ function ApprovalCard({ approval, onApprove, onReject }) {
   );
 }
 
-export default function AgencyPanel({ onClose, agentName }) {
+export default function AgencyPanel({ onClose, agentName, onOpenDashboard }) {
   const { api } = useAuth();
   const [tab, setTab] = useState('products');
   const [products, setProducts] = useState([]);
@@ -232,6 +232,11 @@ export default function AgencyPanel({ onClose, agentName }) {
             </div>
           </div>
           <button onClick={onClose} style={{ color: 'var(--text-tertiary)' }}><X className="w-5 h-5" /></button>
+          {/* Dashboard button */}
+          <button onClick={onOpenDashboard} className="px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors"
+            style={{ background: 'rgba(255,214,0,0.1)', border: '1px solid rgba(255,214,0,0.3)', color: 'var(--accent)' }}>
+            <BarChart3 className="w-3.5 h-3.5" /> Dashboard
+          </button>
         </div>
 
         {/* Tabs */}

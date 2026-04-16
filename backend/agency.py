@@ -293,3 +293,144 @@ async def product_report(prod_id: str, request: Request):
     campaigns = await db.campaigns.find({"product_id": prod_id}, {"_id": 0}).to_list(50)
     rules = await db.rules.find({"product_id": prod_id}, {"_id": 0}).to_list(50)
     return {"product": product, "campaigns": campaigns, "rules": rules}
+
+
+# ─── Platform Integrations (per-user) ────────────────────────────────────────
+import httpx
+
+class PlatformConnect(BaseModel):
+    platform: str  # meta, google, tiktok
+    credentials: dict  # access_token, account_id, etc.
+
+@router.post("/integrations/connect")
+async def connect_platform(body: PlatformConnect, request: Request):
+    user = await get_current_user(request)
+    await check_agency_access(user)
+    doc = {
+        "user_id": user["_id"],
+        "platform": body.platform,
+        "credentials": body.credentials,
+        "connected_at": datetime.now(timezone.utc).isoformat(),
+        "status": "active"
+    }
+    # Validate connection
+    valid = await validate_platform_connection(body.platform, body.credentials)
+    if not valid["ok"]:
+        raise HTTPException(status_code=400, detail=valid.get("error", "Falha na conexao"))
+    doc["account_name"] = valid.get("account_name", "")
+    await db.platform_integrations.update_one(
+        {"user_id": user["_id"], "platform": body.platform},
+        {"$set": doc}, upsert=True
+    )
+    doc.pop("credentials", None)
+    doc.pop("_id", None)
+    return {"message": f"Conectado ao {body.platform}", "connection": doc}
+
+@router.get("/integrations")
+async def list_integrations(request: Request):
+    user = await get_current_user(request)
+    await check_agency_access(user)
+    integrations = await db.platform_integrations.find(
+        {"user_id": user["_id"]}, {"_id": 0, "credentials": 0}
+    ).to_list(10)
+    return integrations
+
+@router.delete("/integrations/{platform}")
+async def disconnect_platform(platform: str, request: Request):
+    user = await get_current_user(request)
+    await check_agency_access(user)
+    await db.platform_integrations.delete_one({"user_id": user["_id"], "platform": platform})
+    return {"message": f"{platform} desconectado"}
+
+@router.post("/integrations/{platform}/sync")
+async def sync_platform_metrics(platform: str, request: Request):
+    """Pull latest metrics from connected platform and update products/campaigns."""
+    user = await get_current_user(request)
+    await check_agency_access(user)
+    integration = await db.platform_integrations.find_one({"user_id": user["_id"], "platform": platform})
+    if not integration:
+        raise HTTPException(status_code=404, detail=f"{platform} nao conectado")
+    creds = integration.get("credentials", {})
+    try:
+        data = await fetch_platform_metrics(platform, creds)
+        # Update campaigns with fetched data
+        updated = 0
+        for camp_data in data.get("campaigns", []):
+            result = await db.campaigns.update_one(
+                {"name": camp_data.get("name"), "platform": platform},
+                {"$set": {"metrics": camp_data.get("metrics", {})}},
+            )
+            if result.modified_count > 0:
+                updated += 1
+        return {"message": f"Sincronizado {updated} campanhas", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao sincronizar: {str(e)}")
+
+async def validate_platform_connection(platform: str, creds: dict) -> dict:
+    """Validate credentials for a platform."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as c:
+            if platform == "meta":
+                token = creds.get("access_token", "")
+                r = await c.get(f"https://graph.facebook.com/v18.0/me?access_token={token}")
+                if r.status_code == 200:
+                    data = r.json()
+                    return {"ok": True, "account_name": data.get("name", "")}
+                return {"ok": False, "error": "Token Meta invalido"}
+            elif platform == "google":
+                # Google Ads requires OAuth - simplified validation
+                token = creds.get("access_token", "")
+                if token and len(token) > 10:
+                    return {"ok": True, "account_name": creds.get("account_id", "Google Ads")}
+                return {"ok": False, "error": "Token Google invalido"}
+            elif platform == "tiktok":
+                token = creds.get("access_token", "")
+                if token and len(token) > 10:
+                    return {"ok": True, "account_name": "TikTok Ads"}
+                return {"ok": False, "error": "Token TikTok invalido"}
+            else:
+                return {"ok": True, "account_name": platform}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+async def fetch_platform_metrics(platform: str, creds: dict) -> dict:
+    """Fetch metrics from a connected platform."""
+    async with httpx.AsyncClient(timeout=15.0) as c:
+        if platform == "meta":
+            token = creds.get("access_token", "")
+            account_id = creds.get("account_id", "")
+            r = await c.get(
+                f"https://graph.facebook.com/v18.0/act_{account_id}/campaigns",
+                params={"access_token": token, "fields": "name,status,insights{spend,impressions,clicks,actions,cost_per_action_type}"}
+            )
+            if r.status_code == 200:
+                return r.json()
+        return {"campaigns": []}
+
+# ─── Metrics History (for charts) ────────────────────────────────────────────
+@router.get("/metrics/{prod_id}/history")
+async def get_metrics_history(prod_id: str, request: Request):
+    user = await get_current_user(request)
+    await check_agency_access(user)
+    history = await db.metrics_history.find(
+        {"product_id": prod_id}, {"_id": 0}
+    ).sort("timestamp", -1).limit(30).to_list(30)
+    history.reverse()
+    return history
+
+@router.post("/metrics/{prod_id}/record")
+async def record_metrics(prod_id: str, request: Request):
+    """Manually record current metrics snapshot for history."""
+    user = await get_current_user(request)
+    await check_agency_access(user)
+    product = await db.products.find_one({"id": prod_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Produto nao encontrado")
+    snapshot = {
+        "product_id": prod_id,
+        "metrics": product.get("metrics", {}),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await db.metrics_history.insert_one(snapshot)
+    snapshot.pop("_id", None)
+    return snapshot

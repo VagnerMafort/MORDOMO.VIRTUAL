@@ -168,7 +168,7 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
               <Zap className="w-8 h-8" style={{ color: 'var(--accent-text)' }} />
             </div>
             <h2 className="text-2xl font-black tracking-tighter mb-3" style={{ fontFamily: 'Outfit, sans-serif' }}>
-              NovaClaw
+              Mordomo Virtual
             </h2>
             <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
               Seu mordomo virtual AI. Pergunte qualquer coisa, execute tarefas, automatize processos.
@@ -205,7 +205,7 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
       {/* TTS toggle bar */}
       <div className="hidden lg:flex items-center justify-between px-4 py-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
         <h3 className="text-sm font-medium truncate" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-secondary)' }}>
-          {messages.length > 0 ? 'Conversa ativa' : 'NovaClaw'}
+          {messages.length > 0 ? 'Conversa ativa' : 'Mordomo Virtual'}
         </h3>
         <button
           data-testid="tts-chat-toggle"
@@ -242,7 +242,7 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
               )}
               <div className="min-w-0 flex-1 pt-0.5">
                 <p className="text-xs font-medium mb-1" style={{ color: msg.role === 'user' ? 'var(--text-primary)' : 'var(--accent)', fontFamily: 'Outfit, sans-serif' }}>
-                  {msg.role === 'user' ? 'Voce' : 'NovaClaw'}
+                  {msg.role === 'user' ? 'Voce' : 'Mordomo Virtual'}
                 </p>
                 {msg.role === 'user' ? (
                   <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>{msg.content}</p>
@@ -264,7 +264,7 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
                 <Bot className="w-4 h-4" style={{ color: 'var(--accent-text)' }} />
               </div>
               <div className="min-w-0 flex-1 pt-0.5">
-                <p className="text-xs font-medium mb-1" style={{ color: 'var(--accent)', fontFamily: 'Outfit, sans-serif' }}>NovaClaw</p>
+                <p className="text-xs font-medium mb-1" style={{ color: 'var(--accent)', fontFamily: 'Outfit, sans-serif' }}>Mordomo Virtual</p>
                 <div
                   className="msg-content text-sm leading-relaxed"
                   style={{ color: 'var(--text-secondary)' }}

@@ -61,7 +61,7 @@ export default function LoginPage() {
             </div>
             <div>
               <h1 className="text-2xl font-black tracking-tighter" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                NovaClaw
+                Mordomo Virtual
               </h1>
               <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
                 Mordomo Virtual AI

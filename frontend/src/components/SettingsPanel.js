@@ -228,7 +228,7 @@ function InstallBanner() {
           className="w-full py-2 text-sm font-medium flex items-center justify-center gap-2 transition-colors"
           style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}
         >
-          <Download className="w-4 h-4" /> Instalar NovaClaw
+          <Download className="w-4 h-4" /> Instalar Mordomo Virtual
         </button>
       ) : (
         <div className="text-xs flex flex-col gap-1" style={{ color: 'var(--text-secondary)' }}>
@@ -347,7 +347,7 @@ export default function SettingsPanel({ onClose }) {
                       onChange={e => setSettings({ ...settings, agent_name: e.target.value })}
                       className="w-full py-2.5 px-3 text-sm outline-none"
                       style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-                      placeholder="NovaClaw"
+                      placeholder="Mordomo Virtual"
                     />
                   </div>
                   <div>
@@ -362,7 +362,7 @@ export default function SettingsPanel({ onClose }) {
                       placeholder="Descreva a personalidade do seu agente. Ex: Voce e um assistente direto e objetivo, especialista em marketing digital..."
                     />
                     <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
-                      Deixe vazio para usar a personalidade padrao do NovaClaw
+                      Deixe vazio para usar a personalidade padrao do Mordomo Virtual
                     </p>
                   </div>
                 </div>
@@ -442,7 +442,7 @@ export default function SettingsPanel({ onClose }) {
                         <p className="text-sm">Ativacao por Voz</p>
                       </div>
                       <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
-                        Diga <strong>"Hey {settings.agent_name || 'NovaClaw'}"</strong> para ativar
+                        Diga <strong>"Hey {settings.agent_name || 'Mordomo Virtual'}"</strong> para ativar
                       </p>
                     </div>
                     <button
@@ -458,7 +458,7 @@ export default function SettingsPanel({ onClose }) {
                   {settings.wake_word_enabled && (
                     <div className="p-2" style={{ background: 'var(--terminal-bg)', border: '1px solid var(--border-subtle)' }}>
                       <p className="text-xs font-mono" style={{ color: 'var(--terminal-text)' }}>
-                        Escuta passiva ativa. O microfone fica ligado aguardando "Hey {settings.agent_name || 'NovaClaw'}".
+                        Escuta passiva ativa. O microfone fica ligado aguardando "Hey {settings.agent_name || 'Mordomo Virtual'}".
                         Ao detectar, entra no modo maos livres automaticamente.
                       </p>
                     </div>

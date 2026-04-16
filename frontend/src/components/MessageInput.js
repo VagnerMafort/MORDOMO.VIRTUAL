@@ -126,7 +126,7 @@ export default function MessageInput({ onSend, disabled }) {
       )}
 
       <p className="text-center text-xs mt-2" style={{ color: 'var(--text-tertiary)' }}>
-        NovaClaw pode cometer erros. Verifique informacoes importantes.
+        Mordomo Virtual pode cometer erros. Verifique informacoes importantes.
       </p>
     </div>
   );

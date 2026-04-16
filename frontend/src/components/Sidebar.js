@@ -2,7 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Plus, Settings, Cpu, Trash2, MessageSquare, LogOut, Zap, Pencil, Check, X, Bot, Building2 } from 'lucide-react';
 import { useState } from 'react';
 
-export default function Sidebar({ conversations, activeConvId, onSelect, onCreate, onDelete, onRename, onOpenSettings, onOpenSkills, onOpenAgents, onOpenAgency }) {
+export default function Sidebar({ conversations, activeConvId, onSelect, onCreate, onDelete, onRename, onOpenSettings, onOpenSkills, onOpenAgents, onOpenAgency, agentName }) {
   const { user, logout } = useAuth();
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -29,7 +29,7 @@ export default function Sidebar({ conversations, activeConvId, onSelect, onCreat
           <Zap className="w-4 h-4" style={{ color: 'var(--accent-text)' }} />
         </div>
         <div className="min-w-0">
-          <h2 className="text-sm font-bold tracking-tight truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>Mordomo Virtual</h2>
+          <h2 className="text-sm font-bold tracking-tight truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>{agentName || 'Mordomo Virtual'}</h2>
           <p className="text-xs truncate" style={{ color: 'var(--text-tertiary)' }}>{user?.name || user?.email}</p>
         </div>
       </div>

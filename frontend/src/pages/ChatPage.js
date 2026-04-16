@@ -6,6 +6,7 @@ import SettingsPanel from '@/components/SettingsPanel';
 import SkillsDashboard from '@/components/SkillsDashboard';
 import AgentManager from '@/components/AgentManager';
 import AgencyPanel from '@/components/AgencyPanel';
+import AgencyDashboard from '@/components/AgencyDashboard';
 import HandsFreeMode from '@/components/HandsFreeMode';
 import WakeWordListener from '@/components/WakeWordListener';
 import { Menu, Headphones } from 'lucide-react';
@@ -20,7 +21,8 @@ export default function ChatPage() {
   const [showAgents, setShowAgents] = useState(false);
   const [showHandsFree, setShowHandsFree] = useState(false);
   const [showAgency, setShowAgency] = useState(false);
-  const [agentName, setAgentName] = useState('NovaClaw');
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [agentName, setAgentName] = useState('Mordomo Virtual');
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
   const [hasAgencyAccess, setHasAgencyAccess] = useState(false);
 
@@ -112,6 +114,7 @@ export default function ChatPage() {
         <Sidebar
           conversations={conversations}
           activeConvId={activeConvId}
+          agentName={agentName}
           onSelect={(id) => { setActiveConvId(id); setSidebarOpen(false); }}
           onCreate={createConversation}
           onDelete={deleteConversation}
@@ -166,7 +169,8 @@ export default function ChatPage() {
       {showSkills && <SkillsDashboard onClose={() => setShowSkills(false)} />}
       {/* Agents Modal */}
       {showAgents && <AgentManager onClose={() => setShowAgents(false)} onStartChat={startAgentChat} />}
-      {showAgency && <AgencyPanel onClose={() => setShowAgency(false)} agentName={agentName} />}
+      {showAgency && <AgencyPanel onClose={() => setShowAgency(false)} agentName={agentName} onOpenDashboard={() => { setShowAgency(false); setShowDashboard(true); }} />}
+      {showDashboard && <AgencyDashboard onClose={() => setShowDashboard(false)} agentName={agentName} />}
       {/* Hands-free Mode */}
       {showHandsFree && <HandsFreeMode onClose={() => { setShowHandsFree(false); setWakeWordEnabled(prev => prev); fetchConversations(); }} agentName={agentName} />}
       {/* Wake Word Listener (runs in background) */}
