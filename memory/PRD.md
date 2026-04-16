@@ -51,6 +51,13 @@ Build an AI agent application similar to OpenClaw - a personal virtual butler/as
 - Safe-area padding for PWA standalone mode
 - Deploy guide for VPS with Docker/Ollama
 
+### 2026-04-16 - Iteration 3 (Telegram + UX)
+- Telegram bot integration per user (connect/disconnect/webhook)
+- Each user can connect their own Telegram bot via @BotFather token
+- Webhook receives Telegram messages and responds via same LLM pipeline
+- Back buttons added to Settings and Skills modals
+- Settings panel now has 4 tabs: Geral, Telegram, Credenciais, Instalar
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
