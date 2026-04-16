@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { X, Save, Server, Volume2, Key, Plus, Trash2, Eye, EyeOff, Download, Check } from 'lucide-react';
+import { X, Save, Server, Volume2, Key, Plus, Trash2, Eye, EyeOff, Download, Check, ArrowLeft, MessageCircle } from 'lucide-react';
+import TelegramIntegration from '@/components/TelegramIntegration';
 
 const SERVICE_OPTIONS = [
   { value: 'telegram', label: 'Telegram Bot Token' },
@@ -274,8 +275,9 @@ export default function SettingsPanel({ onClose }) {
 
   const tabs = [
     { id: 'general', label: 'Geral' },
+    { id: 'telegram', label: 'Telegram' },
     { id: 'credentials', label: 'Credenciais' },
-    { id: 'install', label: 'Instalar App' },
+    { id: 'install', label: 'Instalar' },
   ];
 
   return (
@@ -287,7 +289,19 @@ export default function SettingsPanel({ onClose }) {
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-          <h2 className="text-lg font-bold tracking-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>Configuracoes</h2>
+          <div className="flex items-center gap-3">
+            <button
+              data-testid="settings-back-btn"
+              onClick={onClose}
+              className="p-1.5 transition-colors"
+              style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <h2 className="text-lg font-bold tracking-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>Configuracoes</h2>
+          </div>
           <button data-testid="close-settings-btn" onClick={onClose} style={{ color: 'var(--text-tertiary)' }} className="p-1 transition-colors hover:text-white">
             <X className="w-5 h-5" />
           </button>
@@ -408,6 +422,8 @@ ollama serve`}
               </div>
             </div>
           )}
+
+          {tab === 'telegram' && <TelegramIntegration />}
 
           {tab === 'credentials' && <CredentialsTab />}
 

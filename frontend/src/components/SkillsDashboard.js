@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { X, Globe, Calculator, Terminal, Cpu, Clock, FolderOpen, Monitor, Timer, Mail, Zap } from 'lucide-react';
+import { X, Globe, Calculator, Terminal, Cpu, Clock, FolderOpen, Monitor, Timer, Mail, Zap, ArrowLeft } from 'lucide-react';
 
 const ICON_MAP = {
   Globe, Calculator, Terminal, Cpu, Clock, FolderOpen, Monitor, Timer, Mail, Zap,
@@ -39,11 +39,23 @@ export default function SkillsDashboard({ onClose }) {
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-          <div>
-            <h2 className="text-lg font-bold tracking-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>Habilidades do Agente</h2>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
-              Ative ou desative as capacidades do NovaClaw
-            </p>
+          <div className="flex items-center gap-3">
+            <button
+              data-testid="skills-back-btn"
+              onClick={onClose}
+              className="p-1.5 transition-colors"
+              style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div>
+              <h2 className="text-lg font-bold tracking-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>Habilidades do Agente</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                Ative ou desative as capacidades do NovaClaw
+              </p>
+            </div>
           </div>
           <button data-testid="close-skills-btn" onClick={onClose} style={{ color: 'var(--text-tertiary)' }} className="p-1 transition-colors hover:text-white">
             <X className="w-5 h-5" />

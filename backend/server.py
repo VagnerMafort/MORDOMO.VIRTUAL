@@ -404,6 +404,150 @@ async def delete_credential(cred_id: str, request: Request):
     await db.credentials.delete_one({"id": cred_id, "user_id": user["_id"]})
     return {"message": "Deletado"}
 
+# ─── Telegram Integration ────────────────────────────────────────────────────
+class TelegramConnectInput(BaseModel):
+    bot_token: str
+
+async def telegram_api(token: str, method: str, data: dict = None):
+    """Call Telegram Bot API."""
+    url = f"https://api.telegram.org/bot{token}/{method}"
+    async with httpx.AsyncClient(timeout=15.0) as c:
+        if data:
+            r = await c.post(url, json=data)
+        else:
+            r = await c.get(url)
+        return r.json()
+
+async def get_telegram_llm_response(user_id: str, user_text: str) -> str:
+    """Process a Telegram message through the LLM pipeline."""
+    settings = await db.settings.find_one({"user_id": user_id})
+    ollama_url = settings.get("ollama_url", OLLAMA_URL) if settings else OLLAMA_URL
+    ollama_model = settings.get("ollama_model", OLLAMA_MODEL) if settings else OLLAMA_MODEL
+    # Get recent telegram conversation history for context
+    recent = await db.telegram_messages.find(
+        {"user_id": user_id}
+    ).sort("created_at", -1).limit(10).to_list(10)
+    recent.reverse()
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for m in recent:
+        messages.append({"role": m["role"], "content": m["content"]})
+    messages.append({"role": "user", "content": user_text})
+    # Try Ollama first, fallback to Emergent
+    try:
+        full = ""
+        async for token in stream_ollama(messages, ollama_url, ollama_model):
+            full += token
+        return full
+    except Exception:
+        return await chat_emergent_fallback(messages)
+
+@api_router.post("/telegram/connect")
+async def telegram_connect(body: TelegramConnectInput, request: Request):
+    """Connect a user's Telegram bot."""
+    user = await get_current_user(request)
+    token = body.bot_token.strip()
+    # Validate token
+    result = await telegram_api(token, "getMe")
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail="Token do bot invalido. Verifique com o @BotFather.")
+    bot_info = result["result"]
+    # Set webhook
+    backend_url = os.environ.get("BACKEND_URL", "")
+    if not backend_url:
+        # Try to construct from request
+        backend_url = str(request.base_url).rstrip("/")
+    webhook_url = f"{backend_url}/api/telegram/webhook/{user['_id']}"
+    wh_result = await telegram_api(token, "setWebhook", {"url": webhook_url})
+    if not wh_result.get("ok"):
+        logger.warning(f"Webhook set failed: {wh_result}")
+    # Store connection
+    conn = {
+        "user_id": user["_id"],
+        "bot_token": token,
+        "bot_username": bot_info.get("username", ""),
+        "bot_name": bot_info.get("first_name", ""),
+        "webhook_url": webhook_url,
+        "connected_at": datetime.now(timezone.utc).isoformat(),
+        "active": True
+    }
+    await db.telegram_connections.update_one(
+        {"user_id": user["_id"]},
+        {"$set": conn},
+        upsert=True
+    )
+    conn.pop("bot_token", None)
+    return {"message": "Bot conectado com sucesso!", "bot": conn}
+
+@api_router.get("/telegram/status")
+async def telegram_status(request: Request):
+    """Get user's Telegram connection status."""
+    user = await get_current_user(request)
+    conn = await db.telegram_connections.find_one({"user_id": user["_id"]}, {"_id": 0, "bot_token": 0})
+    return {"connected": conn is not None and conn.get("active", False), "connection": conn}
+
+@api_router.post("/telegram/disconnect")
+async def telegram_disconnect(request: Request):
+    """Disconnect user's Telegram bot."""
+    user = await get_current_user(request)
+    conn = await db.telegram_connections.find_one({"user_id": user["_id"]})
+    if conn and conn.get("bot_token"):
+        await telegram_api(conn["bot_token"], "deleteWebhook")
+    await db.telegram_connections.update_one(
+        {"user_id": user["_id"]},
+        {"$set": {"active": False}}
+    )
+    return {"message": "Bot desconectado"}
+
+@api_router.post("/telegram/webhook/{user_id}")
+async def telegram_webhook(user_id: str, request: Request):
+    """Receive messages from Telegram for a specific user's bot."""
+    try:
+        update = await request.json()
+        message = update.get("message", {})
+        text = message.get("text", "")
+        chat_id = message.get("chat", {}).get("id")
+        if not text or not chat_id:
+            return {"ok": True}
+        # Get user's bot connection
+        conn = await db.telegram_connections.find_one({"user_id": user_id, "active": True})
+        if not conn:
+            return {"ok": True}
+        token = conn["bot_token"]
+        # Store user message
+        await db.telegram_messages.insert_one({
+            "user_id": user_id, "chat_id": chat_id,
+            "role": "user", "content": text,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        # Handle /start command
+        if text == "/start":
+            await telegram_api(token, "sendMessage", {
+                "chat_id": chat_id,
+                "text": "Ola! Eu sou o NovaClaw, seu mordomo virtual AI. Me pergunte qualquer coisa!"
+            })
+            return {"ok": True}
+        # Send "typing" action
+        await telegram_api(token, "sendChatAction", {"chat_id": chat_id, "action": "typing"})
+        # Get LLM response
+        response = await get_telegram_llm_response(user_id, text)
+        # Store AI message
+        await db.telegram_messages.insert_one({
+            "user_id": user_id, "chat_id": chat_id,
+            "role": "assistant", "content": response,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        # Send response (split if too long)
+        MAX_LEN = 4000
+        if len(response) <= MAX_LEN:
+            await telegram_api(token, "sendMessage", {"chat_id": chat_id, "text": response})
+        else:
+            for i in range(0, len(response), MAX_LEN):
+                await telegram_api(token, "sendMessage", {"chat_id": chat_id, "text": response[i:i+MAX_LEN]})
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"Telegram webhook error: {e}")
+        return {"ok": True}
+
 # ─── LLM & Streaming ────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """Voce e o NovaClaw, um assistente AI pessoal avancado e mordomo virtual. Voce foi criado para executar tarefas online e auxiliar o usuario em qualquer necessidade.
 
@@ -596,6 +740,8 @@ async def startup():
     await db.settings.create_index("user_id", unique=True)
     await db.login_attempts.create_index("identifier")
     await db.credentials.create_index([("user_id", 1), ("service", 1)])
+    await db.telegram_connections.create_index("user_id", unique=True)
+    await db.telegram_messages.create_index([("user_id", 1), ("created_at", -1)])
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@novaclaw.com")
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
