@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { X, Save, Server, Volume2, Key, Plus, Trash2, Eye, EyeOff, Download, Check, ArrowLeft, MessageCircle, Bot } from 'lucide-react';
+import { X, Save, Server, Volume2, Key, Plus, Trash2, Eye, EyeOff, Download, Check, ArrowLeft, MessageCircle, Bot, Mic } from 'lucide-react';
 import TelegramIntegration from '@/components/TelegramIntegration';
 
 const SERVICE_OPTIONS = [
@@ -267,6 +267,7 @@ export default function SettingsPanel({ onClose }) {
         tts_language: settings.tts_language,
         agent_name: settings.agent_name,
         agent_personality: settings.agent_personality,
+        wake_word_enabled: settings.wake_word_enabled,
       });
       setSettings(data);
       setSaved(true);
@@ -409,31 +410,59 @@ export default function SettingsPanel({ onClose }) {
                 </div>
               </div>
 
-              {/* TTS Section */}
+              {/* Voice Section */}
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <Volume2 className="w-4 h-4" style={{ color: 'var(--accent)' }} />
                   <h3 className="text-sm font-semibold" style={{ fontFamily: 'Outfit, sans-serif' }}>Voz e Audio</h3>
                 </div>
-                <div className="flex items-center justify-between p-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
-                  <div>
-                    <p className="text-sm">Leitura de Respostas (TTS)</p>
-                    <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>O agente le as respostas em voz alta</p>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between p-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                    <div>
+                      <p className="text-sm">Leitura de Respostas (TTS)</p>
+                      <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>O agente le as respostas em voz alta</p>
+                    </div>
+                    <button
+                      data-testid="tts-toggle"
+                      onClick={() => setSettings({ ...settings, tts_enabled: !settings.tts_enabled })}
+                      className="w-10 h-6 flex-shrink-0 relative transition-colors"
+                      style={{ background: settings.tts_enabled ? 'var(--accent)' : 'var(--bg-base)', border: '1px solid var(--border-subtle)' }}
+                    >
+                      <span className="absolute top-0.5 w-4 h-4 transition-transform"
+                        style={{ background: settings.tts_enabled ? 'var(--accent-text)' : 'var(--text-tertiary)', left: settings.tts_enabled ? '20px' : '2px' }} />
+                    </button>
                   </div>
-                  <button
-                    data-testid="tts-toggle"
-                    onClick={() => setSettings({ ...settings, tts_enabled: !settings.tts_enabled })}
-                    className="w-10 h-6 flex-shrink-0 relative transition-colors"
-                    style={{ background: settings.tts_enabled ? 'var(--accent)' : 'var(--bg-base)', border: '1px solid var(--border-subtle)' }}
-                  >
-                    <span
-                      className="absolute top-0.5 w-4 h-4 transition-transform"
-                      style={{
-                        background: settings.tts_enabled ? 'var(--accent-text)' : 'var(--text-tertiary)',
-                        left: settings.tts_enabled ? '20px' : '2px'
-                      }}
-                    />
-                  </button>
+                  <div className="flex items-center justify-between p-3" style={{
+                    background: settings.wake_word_enabled ? 'rgba(255,214,0,0.05)' : 'var(--bg-elevated)',
+                    border: `1px solid ${settings.wake_word_enabled ? 'rgba(255,214,0,0.3)' : 'var(--border-subtle)'}`,
+                  }}>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Mic className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} />
+                        <p className="text-sm">Ativacao por Voz</p>
+                      </div>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                        Diga <strong>"Hey {settings.agent_name || 'NovaClaw'}"</strong> para ativar
+                      </p>
+                    </div>
+                    <button
+                      data-testid="wake-word-toggle"
+                      onClick={() => setSettings({ ...settings, wake_word_enabled: !settings.wake_word_enabled })}
+                      className="w-10 h-6 flex-shrink-0 relative transition-colors"
+                      style={{ background: settings.wake_word_enabled ? 'var(--accent)' : 'var(--bg-base)', border: '1px solid var(--border-subtle)' }}
+                    >
+                      <span className="absolute top-0.5 w-4 h-4 transition-transform"
+                        style={{ background: settings.wake_word_enabled ? 'var(--accent-text)' : 'var(--text-tertiary)', left: settings.wake_word_enabled ? '20px' : '2px' }} />
+                    </button>
+                  </div>
+                  {settings.wake_word_enabled && (
+                    <div className="p-2" style={{ background: 'var(--terminal-bg)', border: '1px solid var(--border-subtle)' }}>
+                      <p className="text-xs font-mono" style={{ color: 'var(--terminal-text)' }}>
+                        Escuta passiva ativa. O microfone fica ligado aguardando "Hey {settings.agent_name || 'NovaClaw'}".
+                        Ao detectar, entra no modo maos livres automaticamente.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 

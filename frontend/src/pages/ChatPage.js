@@ -6,6 +6,7 @@ import SettingsPanel from '@/components/SettingsPanel';
 import SkillsDashboard from '@/components/SkillsDashboard';
 import AgentManager from '@/components/AgentManager';
 import HandsFreeMode from '@/components/HandsFreeMode';
+import WakeWordListener from '@/components/WakeWordListener';
 import { Menu, Headphones } from 'lucide-react';
 
 export default function ChatPage() {
@@ -18,13 +19,15 @@ export default function ChatPage() {
   const [showAgents, setShowAgents] = useState(false);
   const [showHandsFree, setShowHandsFree] = useState(false);
   const [agentName, setAgentName] = useState('NovaClaw');
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
 
-  // Load agent name from settings
+  // Load agent name and wake word setting
   useEffect(() => {
     (async () => {
       try {
         const { data } = await api.get('/settings');
         if (data.agent_name) setAgentName(data.agent_name);
+        if (data.wake_word_enabled) setWakeWordEnabled(true);
       } catch {}
     })();
   }, [api]);
@@ -156,7 +159,15 @@ export default function ChatPage() {
       {/* Agents Modal */}
       {showAgents && <AgentManager onClose={() => setShowAgents(false)} onStartChat={startAgentChat} />}
       {/* Hands-free Mode */}
-      {showHandsFree && <HandsFreeMode onClose={() => { setShowHandsFree(false); fetchConversations(); }} agentName={agentName} />}
+      {showHandsFree && <HandsFreeMode onClose={() => { setShowHandsFree(false); setWakeWordEnabled(prev => prev); fetchConversations(); }} agentName={agentName} />}
+      {/* Wake Word Listener (runs in background) */}
+      {!showHandsFree && (
+        <WakeWordListener
+          agentName={agentName}
+          enabled={wakeWordEnabled}
+          onActivated={() => setShowHandsFree(true)}
+        />
+      )}
       {/* Desktop hands-free FAB */}
       <button
         data-testid="desktop-handsfree-btn"

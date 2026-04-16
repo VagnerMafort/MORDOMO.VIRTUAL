@@ -95,6 +95,7 @@ class SettingsUpdate(BaseModel):
     skills_enabled: Optional[List[str]] = None
     agent_name: Optional[str] = None
     agent_personality: Optional[str] = None
+    wake_word_enabled: Optional[bool] = None
 
 class CredentialCreate(BaseModel):
     name: str
