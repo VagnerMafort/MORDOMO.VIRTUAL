@@ -58,6 +58,13 @@ Build an AI agent application similar to OpenClaw - a personal virtual butler/as
 - Back buttons added to Settings and Skills modals
 - Settings panel now has 4 tabs: Geral, Telegram, Credenciais, Instalar
 
+### 2026-04-16 - Iteration 4 (Skills Avançados + Agentes)
+- 7 skills avançados funcionais: code_executor (Python/JS/Bash), code_generator, web_scraper (CSS selectors), url_summarizer, file_manager (CRUD), notes_tasks, api_caller (GET/POST/PUT/DELETE)
+- Sistema de Agentes: 4 templates prontos (Dev Expert, Pesquisador Web, Analista de Dados, Automatizador) + criação de agentes personalizados
+- Conversas vinculadas a agentes usam system prompt específico do agente
+- Notes e Tasks API (CRUD completo)
+- 13 skills totais no dashboard (10 disponíveis + 3 requerem VPS)
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
