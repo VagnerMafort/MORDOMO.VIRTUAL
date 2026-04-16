@@ -58,6 +58,16 @@ class MentorshipUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     status: Optional[str] = None
+    modules: Optional[list] = None
+
+class ModuleData(BaseModel):
+    id: Optional[str] = None
+    title: str
+    objective: str = ""
+    order: int = 0
+    lessons: list = []  # [{id, title, content, duration, order}]
+    exercises: list = []  # [{id, title, description}]
+    materials: list = []  # [{id, title, type}]
 
 # ─── Knowledge Upload ────────────────────────────────────────────────────────
 @router.post("/upload-knowledge")
@@ -196,3 +206,269 @@ async def delete_mentorship(mentorship_id: str, request: Request):
     user = await get_current_user(request)
     await db.mentorships.delete_one({"id": mentorship_id, "user_id": user["_id"]})
     return {"message": "Mentoria deletada"}
+
+# ─── Modules CRUD ────────────────────────────────────────────────────────────
+@router.get("/{mentorship_id}/modules")
+async def get_modules(mentorship_id: str, request: Request):
+    user = await get_current_user(request)
+    m = await db.mentorships.find_one({"id": mentorship_id, "user_id": user["_id"]})
+    if not m:
+        raise HTTPException(status_code=404, detail="Mentoria nao encontrada")
+    return m.get("modules", [])
+
+@router.put("/{mentorship_id}/modules")
+async def save_modules(mentorship_id: str, request: Request):
+    """Save the full modules structure (replace all)."""
+    user = await get_current_user(request)
+    body = await request.json()
+    modules = body if isinstance(body, list) else body.get("modules", [])
+    # Ensure IDs
+    for i, mod in enumerate(modules):
+        if not mod.get("id"):
+            mod["id"] = str(uuid.uuid4())
+        mod["order"] = i
+        for j, lesson in enumerate(mod.get("lessons", [])):
+            if not lesson.get("id"):
+                lesson["id"] = str(uuid.uuid4())
+            lesson["order"] = j
+    await db.mentorships.update_one(
+        {"id": mentorship_id, "user_id": user["_id"]},
+        {"$set": {"modules": modules}}
+    )
+    return modules
+
+@router.post("/{mentorship_id}/modules")
+async def add_module(mentorship_id: str, body: ModuleData, request: Request):
+    user = await get_current_user(request)
+    m = await db.mentorships.find_one({"id": mentorship_id, "user_id": user["_id"]})
+    if not m:
+        raise HTTPException(status_code=404, detail="Mentoria nao encontrada")
+    modules = m.get("modules", [])
+    mod = body.model_dump()
+    mod["id"] = str(uuid.uuid4())
+    mod["order"] = len(modules)
+    for j, lesson in enumerate(mod.get("lessons", [])):
+        if not lesson.get("id"):
+            lesson["id"] = str(uuid.uuid4())
+        lesson["order"] = j
+    modules.append(mod)
+    await db.mentorships.update_one({"id": mentorship_id}, {"$set": {"modules": modules}})
+    return mod
+
+@router.delete("/{mentorship_id}/modules/{module_id}")
+async def delete_module(mentorship_id: str, module_id: str, request: Request):
+    user = await get_current_user(request)
+    m = await db.mentorships.find_one({"id": mentorship_id, "user_id": user["_id"]})
+    if not m:
+        raise HTTPException(status_code=404, detail="Mentoria nao encontrada")
+    modules = [mod for mod in m.get("modules", []) if mod.get("id") != module_id]
+    for i, mod in enumerate(modules):
+        mod["order"] = i
+    await db.mentorships.update_one({"id": mentorship_id}, {"$set": {"modules": modules}})
+    return {"message": "Modulo removido"}
+
+# ─── Parse AI content into structured modules ────────────────────────────────
+@router.post("/{mentorship_id}/parse-modules")
+async def parse_content_to_modules(mentorship_id: str, request: Request):
+    """Parse the AI-generated content into structured modules."""
+    user = await get_current_user(request)
+    m = await db.mentorships.find_one({"id": mentorship_id, "user_id": user["_id"]})
+    if not m:
+        raise HTTPException(status_code=404, detail="Mentoria nao encontrada")
+    content = m.get("content", "")
+    modules = parse_mentorship_content(content)
+    await db.mentorships.update_one({"id": mentorship_id}, {"$set": {"modules": modules}})
+    return modules
+
+def parse_mentorship_content(content: str) -> list:
+    """Parse markdown content into structured modules."""
+    import re
+    modules = []
+    # Split by module headers (## Modulo, **MODULO, etc.)
+    module_pattern = r'(?:^|\n)(?:#{1,3}\s*|(?:\*\*))(?:M[oó]dulo\s*\d+|MODULO\s*\d+)[:\s\-–]*(.+?)(?:\*\*)?(?:\n|$)'
+    parts = re.split(module_pattern, content, flags=re.IGNORECASE)
+
+    if len(parts) < 2:
+        # Try alternative split
+        module_pattern2 = r'(?:^|\n)\d+\.\s*\*\*(.+?)\*\*'
+        parts = re.split(module_pattern2, content)
+
+    if len(parts) < 2:
+        # If can't parse, create one big module
+        modules.append({
+            "id": str(uuid.uuid4()), "title": "Conteudo Completo",
+            "objective": "", "order": 0,
+            "lessons": [{"id": str(uuid.uuid4()), "title": "Conteudo", "content": content[:5000], "duration": "", "order": 0}],
+            "exercises": [], "materials": []
+        })
+        return modules
+
+    for i in range(1, len(parts), 2):
+        title = parts[i].strip() if i < len(parts) else f"Modulo {len(modules)+1}"
+        body = parts[i+1].strip() if i+1 < len(parts) else ""
+        # Parse lessons from body
+        lesson_pattern = r'(?:^|\n)\s*[-*]\s*(?:\*\*)?(?:Aula\s*\d+[:\s\-–]*)?(.+?)(?:\*\*)?(?:\n|$)'
+        lesson_matches = re.findall(lesson_pattern, body, re.IGNORECASE)
+        lessons = []
+        if lesson_matches:
+            for j, lt in enumerate(lesson_matches[:8]):
+                lessons.append({"id": str(uuid.uuid4()), "title": lt.strip(), "content": "", "duration": "30min", "order": j})
+        else:
+            lessons.append({"id": str(uuid.uuid4()), "title": "Conteudo do modulo", "content": body[:2000], "duration": "60min", "order": 0})
+
+        modules.append({
+            "id": str(uuid.uuid4()), "title": title[:100],
+            "objective": "", "order": len(modules),
+            "lessons": lessons, "exercises": [], "materials": []
+        })
+
+    return modules[:12]  # Max 12 modules
+
+# ─── Export ──────────────────────────────────────────────────────────────────
+from fastapi.responses import Response
+import markdown2
+
+@router.get("/{mentorship_id}/export/pdf")
+async def export_pdf(mentorship_id: str, request: Request):
+    user = await get_current_user(request)
+    m = await db.mentorships.find_one({"id": mentorship_id, "user_id": user["_id"]})
+    if not m:
+        raise HTTPException(status_code=404, detail="Mentoria nao encontrada")
+
+    html = build_export_html(m)
+    try:
+        from weasyprint import HTML
+        pdf_bytes = HTML(string=html).write_pdf()
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{m["title"]}.pdf"'}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar PDF: {str(e)}")
+
+@router.get("/{mentorship_id}/export/docx")
+async def export_docx(mentorship_id: str, request: Request):
+    user = await get_current_user(request)
+    m = await db.mentorships.find_one({"id": mentorship_id, "user_id": user["_id"]})
+    if not m:
+        raise HTTPException(status_code=404, detail="Mentoria nao encontrada")
+
+    try:
+        from docx import Document
+        from docx.shared import Inches, Pt, Cm
+        from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+        import io
+
+        doc = Document()
+        style = doc.styles['Normal']
+        style.font.name = 'Arial'
+        style.font.size = Pt(11)
+
+        # Title
+        title_p = doc.add_heading(m.get("title", "Mentoria"), level=0)
+        title_p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
+        if m.get("niche"):
+            doc.add_paragraph(f"Nicho: {m['niche']} | Duracao: {m.get('duration_weeks', 8)} semanas", style='Subtitle')
+
+        doc.add_paragraph("")
+
+        # If has structured modules
+        modules = m.get("modules", [])
+        if modules:
+            for mod in sorted(modules, key=lambda x: x.get("order", 0)):
+                doc.add_heading(f"Modulo {mod['order']+1}: {mod['title']}", level=1)
+                if mod.get("objective"):
+                    doc.add_paragraph(f"Objetivo: {mod['objective']}")
+                for lesson in sorted(mod.get("lessons", []), key=lambda x: x.get("order", 0)):
+                    doc.add_heading(f"Aula: {lesson['title']}", level=2)
+                    if lesson.get("content"):
+                        doc.add_paragraph(lesson["content"])
+                    if lesson.get("duration"):
+                        doc.add_paragraph(f"Duracao: {lesson['duration']}", style='Intense Quote')
+                if mod.get("exercises"):
+                    doc.add_heading("Exercicios", level=2)
+                    for ex in mod["exercises"]:
+                        doc.add_paragraph(f"- {ex.get('title', '')}: {ex.get('description', '')}")
+                doc.add_page_break()
+        else:
+            # Use raw content
+            content = m.get("content", "")
+            for line in content.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith("# "):
+                    doc.add_heading(line[2:], level=1)
+                elif line.startswith("## "):
+                    doc.add_heading(line[3:], level=2)
+                elif line.startswith("### "):
+                    doc.add_heading(line[4:], level=3)
+                elif line.startswith("**") and line.endswith("**"):
+                    p = doc.add_paragraph()
+                    p.add_run(line.strip("*")).bold = True
+                elif line.startswith("- "):
+                    doc.add_paragraph(line[2:], style='List Bullet')
+                else:
+                    doc.add_paragraph(line)
+
+        buf = io.BytesIO()
+        doc.save(buf)
+        buf.seek(0)
+        return Response(
+            content=buf.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f'attachment; filename="{m["title"]}.docx"'}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar DOCX: {str(e)}")
+
+def build_export_html(m: dict) -> str:
+    """Build HTML for PDF export."""
+    title = m.get("title", "Mentoria")
+    modules = m.get("modules", [])
+    content = m.get("content", "")
+
+    html = f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+    <style>
+        @page {{ margin: 2cm; size: A4; }}
+        body {{ font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.6; color: #222; }}
+        h1 {{ color: #1a1a1a; font-size: 24pt; text-align: center; margin-bottom: 5px; }}
+        h2 {{ color: #333; font-size: 16pt; border-bottom: 2px solid #FFD600; padding-bottom: 5px; margin-top: 30px; }}
+        h3 {{ color: #555; font-size: 13pt; }}
+        .subtitle {{ text-align: center; color: #666; font-size: 10pt; margin-bottom: 30px; }}
+        .module {{ page-break-inside: avoid; margin-bottom: 20px; }}
+        .lesson {{ margin-left: 15px; margin-bottom: 10px; padding: 8px; background: #f9f9f9; border-left: 3px solid #FFD600; }}
+        .exercise {{ margin-left: 15px; padding: 5px; }}
+        ul {{ padding-left: 20px; }}
+        strong {{ color: #1a1a1a; }}
+        .cover {{ text-align: center; padding: 60px 0; }}
+    </style></head><body>
+    <div class="cover"><h1>{title}</h1>
+    <p class="subtitle">{m.get('niche', '')} | {m.get('duration_weeks', 8)} semanas</p></div>"""
+
+    if modules:
+        for mod in sorted(modules, key=lambda x: x.get("order", 0)):
+            html += f'<div class="module"><h2>Modulo {mod["order"]+1}: {mod["title"]}</h2>'
+            if mod.get("objective"):
+                html += f'<p><strong>Objetivo:</strong> {mod["objective"]}</p>'
+            for lesson in sorted(mod.get("lessons", []), key=lambda x: x.get("order", 0)):
+                html += f'<div class="lesson"><h3>{lesson["title"]}</h3>'
+                if lesson.get("content"):
+                    html += f'<p>{lesson["content"]}</p>'
+                if lesson.get("duration"):
+                    html += f'<p><em>Duracao: {lesson["duration"]}</em></p>'
+                html += '</div>'
+            if mod.get("exercises"):
+                html += '<h3>Exercicios</h3><ul>'
+                for ex in mod["exercises"]:
+                    html += f'<li><strong>{ex.get("title", "")}</strong>: {ex.get("description", "")}</li>'
+                html += '</ul>'
+            html += '</div>'
+    else:
+        md_html = markdown2.markdown(content)
+        html += md_html
+
+    html += '</body></html>'
+    return html

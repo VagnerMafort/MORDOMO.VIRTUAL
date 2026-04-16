@@ -4,6 +4,7 @@ import {
   X, ArrowLeft, Plus, Trash2, Upload, FileText, Loader2,
   BookOpen, Download, Eye, ChevronDown, ChevronUp, GraduationCap
 } from 'lucide-react';
+import MentorshipEditor from '@/components/MentorshipEditor';
 
 function formatContent(text) {
   if (!text) return '';
@@ -113,29 +114,13 @@ export default function MentorshipPanel({ onClose }) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
-          {/* VIEWING a mentorship */}
+          {/* VIEWING/EDITING a mentorship */}
           {viewing && (
-            <div className="animate-fade-in">
-              <div className="flex items-center justify-between mb-4">
-                <button onClick={() => setViewing(null)} className="flex items-center gap-1 text-xs"
-                  style={{ color: 'var(--accent)' }}>
-                  <ArrowLeft className="w-3 h-3" /> Voltar
-                </button>
-                <span className="text-xs px-2 py-0.5" style={{
-                  background: viewing.status === 'published' ? 'rgba(34,197,94,0.15)' : 'rgba(255,214,0,0.15)',
-                  color: viewing.status === 'published' ? 'var(--success)' : 'var(--accent)',
-                }}>{viewing.status === 'published' ? 'Publicada' : 'Rascunho'}</span>
-              </div>
-              <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Outfit' }}>{viewing.title}</h3>
-              <div className="flex gap-3 mb-4 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                {viewing.niche && <span>Nicho: {viewing.niche}</span>}
-                {viewing.duration_weeks && <span>{viewing.duration_weeks} semanas</span>}
-                <span>{new Date(viewing.created_at).toLocaleDateString('pt-BR')}</span>
-              </div>
-              <div className="msg-content text-sm leading-relaxed p-4"
-                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}
-                dangerouslySetInnerHTML={{ __html: formatContent(viewing.content) }} />
-            </div>
+            <MentorshipEditor
+              mentorship={viewing}
+              onBack={() => setViewing(null)}
+              onUpdated={loadData}
+            />
           )}
 
           {/* CREATE tab */}
