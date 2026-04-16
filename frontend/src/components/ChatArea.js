@@ -1,9 +1,30 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import MessageInput from '@/components/MessageInput';
-import { Bot, User, Zap } from 'lucide-react';
+import { Bot, User, Zap, Volume2, VolumeX } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+
+function speakText(text, lang = 'pt-BR') {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  // Strip markdown/code for clean speech
+  const clean = text
+    .replace(/```[\s\S]*?```/g, 'bloco de codigo')
+    .replace(/`[^`]+`/g, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/#{1,3}\s/g, '')
+    .replace(/\[SKILL:[^\]]+\]/g, '')
+    .replace(/https?:\/\/\S+/g, 'link')
+    .trim();
+  if (!clean) return;
+  const utterance = new SpeechSynthesisUtterance(clean.slice(0, 500));
+  utterance.lang = lang;
+  utterance.rate = 1.0;
+  utterance.pitch = 1.0;
+  window.speechSynthesis.speak(utterance);
+}
 
 function formatContent(text) {
   if (!text) return '';
@@ -45,6 +66,7 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
   const [messages, setMessages] = useState([]);
   const [streaming, setStreaming] = useState(false);
   const [streamContent, setStreamContent] = useState('');
+  const [ttsActive, setTtsActive] = useState(() => localStorage.getItem('nc_tts') !== 'false');
   const scrollRef = useRef(null);
   const abortRef = useRef(null);
 
@@ -116,6 +138,10 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
               ]);
               setStreamContent('');
               setStreaming(false);
+              // TTS: read response aloud
+              if (ttsActive && fullContent) {
+                speakText(fullContent);
+              }
               // Update conversation title
               if (messages.length === 0) {
                 const title = content.slice(0, 50) + (content.length > 50 ? '...' : '');
@@ -176,6 +202,26 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
+      {/* TTS toggle bar */}
+      <div className="hidden lg:flex items-center justify-between px-4 py-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+        <h3 className="text-sm font-medium truncate" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-secondary)' }}>
+          {messages.length > 0 ? 'Conversa ativa' : 'NovaClaw'}
+        </h3>
+        <button
+          data-testid="tts-chat-toggle"
+          onClick={() => { setTtsActive(p => { localStorage.setItem('nc_tts', !p); return !p; }); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors"
+          style={{
+            background: ttsActive ? 'rgba(255,214,0,0.1)' : 'transparent',
+            border: `1px solid ${ttsActive ? 'rgba(255,214,0,0.3)' : 'var(--border-subtle)'}`,
+            color: ttsActive ? 'var(--accent)' : 'var(--text-tertiary)',
+          }}
+        >
+          {ttsActive ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+          {ttsActive ? 'TTS Ativo' : 'TTS Desligado'}
+        </button>
+      </div>
+
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto" data-testid="messages-container">
         <div className="max-w-3xl mx-auto py-4">

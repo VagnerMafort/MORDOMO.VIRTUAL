@@ -93,6 +93,14 @@ class SettingsUpdate(BaseModel):
     tts_language: Optional[str] = None
     skills_enabled: Optional[List[str]] = None
 
+class CredentialCreate(BaseModel):
+    name: str
+    service: str
+    key_value: str
+
+class CredentialUpdate(BaseModel):
+    key_value: str
+
 # ─── Auth Routes ──────────────────────────────────────────────────────────────
 from fastapi.responses import JSONResponse
 
@@ -349,6 +357,53 @@ async def update_settings(body: SettingsUpdate, request: Request):
     settings = await db.settings.find_one({"user_id": user["_id"]}, {"_id": 0})
     return settings
 
+# ─── Credentials Routes ──────────────────────────────────────────────────────
+@api_router.get("/credentials")
+async def list_credentials(request: Request):
+    user = await get_current_user(request)
+    creds = await db.credentials.find({"user_id": user["_id"]}, {"_id": 0}).to_list(50)
+    # Mask values for security
+    for c in creds:
+        val = c.get("key_value", "")
+        c["key_masked"] = val[:4] + "****" + val[-4:] if len(val) > 8 else "****"
+        c.pop("key_value", None)
+    return creds
+
+@api_router.post("/credentials")
+async def create_credential(body: CredentialCreate, request: Request):
+    user = await get_current_user(request)
+    cred_id = str(uuid.uuid4())
+    doc = {
+        "id": cred_id,
+        "user_id": user["_id"],
+        "name": body.name,
+        "service": body.service,
+        "key_value": body.key_value,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.credentials.insert_one(doc)
+    doc.pop("_id", None)
+    doc["key_masked"] = body.key_value[:4] + "****" + body.key_value[-4:] if len(body.key_value) > 8 else "****"
+    doc.pop("key_value", None)
+    return doc
+
+@api_router.put("/credentials/{cred_id}")
+async def update_credential(cred_id: str, body: CredentialUpdate, request: Request):
+    user = await get_current_user(request)
+    result = await db.credentials.update_one(
+        {"id": cred_id, "user_id": user["_id"]},
+        {"$set": {"key_value": body.key_value}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Credencial nao encontrada")
+    return {"message": "Atualizado"}
+
+@api_router.delete("/credentials/{cred_id}")
+async def delete_credential(cred_id: str, request: Request):
+    user = await get_current_user(request)
+    await db.credentials.delete_one({"id": cred_id, "user_id": user["_id"]})
+    return {"message": "Deletado"}
+
 # ─── LLM & Streaming ────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """Voce e o NovaClaw, um assistente AI pessoal avancado e mordomo virtual. Voce foi criado para executar tarefas online e auxiliar o usuario em qualquer necessidade.
 
@@ -540,6 +595,7 @@ async def startup():
     await db.messages.create_index([("conversation_id", 1), ("created_at", 1)])
     await db.settings.create_index("user_id", unique=True)
     await db.login_attempts.create_index("identifier")
+    await db.credentials.create_index([("user_id", 1), ("service", 1)])
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@novaclaw.com")
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
