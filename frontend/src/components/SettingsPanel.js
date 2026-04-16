@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { X, Save, Server, Volume2, Key, Plus, Trash2, Eye, EyeOff, Download, Check, ArrowLeft, MessageCircle } from 'lucide-react';
+import { X, Save, Server, Volume2, Key, Plus, Trash2, Eye, EyeOff, Download, Check, ArrowLeft, MessageCircle, Bot } from 'lucide-react';
 import TelegramIntegration from '@/components/TelegramIntegration';
 
 const SERVICE_OPTIONS = [
@@ -265,6 +265,8 @@ export default function SettingsPanel({ onClose }) {
         ollama_model: settings.ollama_model,
         tts_enabled: settings.tts_enabled,
         tts_language: settings.tts_language,
+        agent_name: settings.agent_name,
+        agent_personality: settings.agent_personality,
       });
       setSettings(data);
       setSaved(true);
@@ -329,6 +331,42 @@ export default function SettingsPanel({ onClose }) {
         <div className="flex-1 overflow-y-auto p-5">
           {tab === 'general' && settings && (
             <div className="flex flex-col gap-6">
+              {/* Agent Identity */}
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Bot className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+                  <h3 className="text-sm font-semibold" style={{ fontFamily: 'Outfit, sans-serif' }}>Identidade do Agente Principal</h3>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <label className="block text-xs mb-1.5" style={{ color: 'var(--text-secondary)' }}>Nome do Agente</label>
+                    <input
+                      data-testid="agent-name-setting"
+                      value={settings.agent_name || ''}
+                      onChange={e => setSettings({ ...settings, agent_name: e.target.value })}
+                      className="w-full py-2.5 px-3 text-sm outline-none"
+                      style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                      placeholder="NovaClaw"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1.5" style={{ color: 'var(--text-secondary)' }}>Personalidade / Instrucoes</label>
+                    <textarea
+                      data-testid="agent-personality-setting"
+                      value={settings.agent_personality || ''}
+                      onChange={e => setSettings({ ...settings, agent_personality: e.target.value })}
+                      rows={4}
+                      className="w-full py-2.5 px-3 text-sm outline-none resize-none"
+                      style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                      placeholder="Descreva a personalidade do seu agente. Ex: Voce e um assistente direto e objetivo, especialista em marketing digital..."
+                    />
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                      Deixe vazio para usar a personalidade padrao do NovaClaw
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Ollama Section */}
               <div>
                 <div className="flex items-center gap-2 mb-4">

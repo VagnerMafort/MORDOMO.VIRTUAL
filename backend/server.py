@@ -93,6 +93,8 @@ class SettingsUpdate(BaseModel):
     tts_enabled: Optional[bool] = None
     tts_language: Optional[str] = None
     skills_enabled: Optional[List[str]] = None
+    agent_name: Optional[str] = None
+    agent_personality: Optional[str] = None
 
 class CredentialCreate(BaseModel):
     name: str
@@ -154,7 +156,9 @@ async def register(body: RegisterInput):
     await db.settings.insert_one({
         "user_id": user_id, "ollama_url": OLLAMA_URL, "ollama_model": OLLAMA_MODEL,
         "tts_enabled": True, "tts_language": "pt-BR",
-        "skills_enabled": ["web_scraper", "calculator", "code_runner", "system_info", "datetime_info"]
+        "skills_enabled": ["code_executor", "web_scraper", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
+        "agent_name": "NovaClaw",
+        "agent_personality": ""
     })
     return {"user": {"id": user_id, "email": email, "name": body.name.strip(), "role": "user"}, "access_token": access, "refresh_token": refresh}
 
@@ -472,11 +476,18 @@ async def get_settings(request: Request):
             "ollama_model": OLLAMA_MODEL,
             "tts_enabled": True,
             "tts_language": "pt-BR",
-            "skills_enabled": ["web_scraper", "calculator", "code_runner", "system_info", "datetime_info"]
+            "agent_name": "NovaClaw",
+            "agent_personality": "",
+            "skills_enabled": ["code_executor", "web_scraper", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
         }
         await db.settings.insert_one(default)
         default.pop("_id", None)
         return default
+    # Ensure new fields have defaults for existing users
+    if "agent_name" not in settings:
+        settings["agent_name"] = "NovaClaw"
+    if "agent_personality" not in settings:
+        settings["agent_personality"] = ""
     return settings
 
 @api_router.put("/settings")
@@ -716,8 +727,9 @@ SYSTEM_PROMPT = """Voce e o NovaClaw, um mordomo virtual AI avancado. Voce execu
 - Use markdown para formatacao
 - Seja proativo: se pode resolver com uma skill, use-a"""
 
-def build_messages(history: list, user_msg: str) -> list:
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+def build_messages(history: list, user_msg: str, custom_prompt: str = None) -> list:
+    prompt = custom_prompt if custom_prompt else SYSTEM_PROMPT
+    messages = [{"role": "system", "content": prompt}]
     for m in history[-20:]:
         messages.append({"role": m["role"], "content": m["content"]})
     messages.append({"role": "user", "content": user_msg})
@@ -805,16 +817,20 @@ async def send_message(conv_id: str, body: MessageCreate, request: Request):
     settings = await db.settings.find_one({"user_id": user["_id"]})
     ollama_url = settings.get("ollama_url", OLLAMA_URL) if settings else OLLAMA_URL
     ollama_model = settings.get("ollama_model", OLLAMA_MODEL) if settings else OLLAMA_MODEL
-    messages = build_messages(history[:-1], body.content)
 
-    # If conversation has an agent, use agent's system prompt
-    agent_prompt = None
+    # Determine system prompt: agent > custom personality > default
+    custom_prompt = None
     if conv.get("agent_id"):
         agent = await db.agents.find_one({"id": conv["agent_id"]})
         if agent and agent.get("system_prompt"):
-            agent_prompt = agent["system_prompt"]
-    if agent_prompt:
-        messages[0] = {"role": "system", "content": agent_prompt}
+            custom_prompt = agent["system_prompt"]
+    elif settings and settings.get("agent_personality"):
+        # Build custom prompt with user's personality + skills
+        agent_name = settings.get("agent_name", "NovaClaw")
+        personality = settings["agent_personality"]
+        custom_prompt = f"Voce e o {agent_name}. {personality}\n\n" + SYSTEM_PROMPT.split("## SUAS HABILIDADES", 1)[-1] if "## SUAS HABILIDADES" in SYSTEM_PROMPT else f"Voce e o {agent_name}. {personality}\n\nResponda sempre em portugues brasileiro."
+
+    messages = build_messages(history[:-1], body.content, custom_prompt)
 
     ai_msg_id = str(uuid.uuid4())
 
@@ -1034,7 +1050,9 @@ async def startup():
         await db.settings.insert_one({
             "user_id": user_id, "ollama_url": OLLAMA_URL, "ollama_model": OLLAMA_MODEL,
             "tts_enabled": True, "tts_language": "pt-BR",
-            "skills_enabled": ["web_scraper", "calculator", "code_runner", "system_info", "datetime_info"]
+            "skills_enabled": ["code_executor", "web_scraper", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
+        "agent_name": "NovaClaw",
+        "agent_personality": ""
         })
         logger.info(f"Admin criado: {admin_email}")
     elif not verify_password(admin_password, existing["password_hash"]):

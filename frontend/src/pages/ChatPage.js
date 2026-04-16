@@ -5,7 +5,8 @@ import ChatArea from '@/components/ChatArea';
 import SettingsPanel from '@/components/SettingsPanel';
 import SkillsDashboard from '@/components/SkillsDashboard';
 import AgentManager from '@/components/AgentManager';
-import { Menu } from 'lucide-react';
+import HandsFreeMode from '@/components/HandsFreeMode';
+import { Menu, Headphones } from 'lucide-react';
 
 export default function ChatPage() {
   const { api } = useAuth();
@@ -15,6 +16,18 @@ export default function ChatPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [showSkills, setShowSkills] = useState(false);
   const [showAgents, setShowAgents] = useState(false);
+  const [showHandsFree, setShowHandsFree] = useState(false);
+  const [agentName, setAgentName] = useState('NovaClaw');
+
+  // Load agent name from settings
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await api.get('/settings');
+        if (data.agent_name) setAgentName(data.agent_name);
+      } catch {}
+    })();
+  }, [api]);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -111,9 +124,17 @@ export default function ChatPage() {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <h1 className="text-sm font-semibold truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            {conversations.find(c => c.id === activeConvId)?.title || 'NovaClaw'}
+          <h1 className="text-sm font-semibold truncate flex-1" style={{ fontFamily: 'Outfit, sans-serif' }}>
+            {conversations.find(c => c.id === activeConvId)?.title || agentName}
           </h1>
+          <button
+            data-testid="mobile-handsfree-btn"
+            onClick={() => setShowHandsFree(true)}
+            className="p-2 transition-colors"
+            style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}
+          >
+            <Headphones className="w-4 h-4" />
+          </button>
         </div>
 
         <ChatArea
@@ -134,6 +155,20 @@ export default function ChatPage() {
       {showSkills && <SkillsDashboard onClose={() => setShowSkills(false)} />}
       {/* Agents Modal */}
       {showAgents && <AgentManager onClose={() => setShowAgents(false)} onStartChat={startAgentChat} />}
+      {/* Hands-free Mode */}
+      {showHandsFree && <HandsFreeMode onClose={() => { setShowHandsFree(false); fetchConversations(); }} agentName={agentName} />}
+      {/* Desktop hands-free FAB */}
+      <button
+        data-testid="desktop-handsfree-btn"
+        onClick={() => setShowHandsFree(true)}
+        className="hidden lg:flex fixed bottom-6 right-6 w-14 h-14 items-center justify-center z-20 transition-all shadow-lg"
+        style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}
+        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+        title="Modo Maos Livres"
+      >
+        <Headphones className="w-6 h-6" />
+      </button>
     </div>
   );
 }
