@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { X, Globe, Calculator, Terminal, Cpu, Clock, FolderOpen, Monitor, Timer, Mail, Zap, ArrowLeft } from 'lucide-react';
+import { X, Globe, Calculator, Terminal, Cpu, Clock, FolderOpen, Monitor, Timer, Mail, Zap, ArrowLeft, Code, FileText, ClipboardList, Search, BarChart3 } from 'lucide-react';
 
 const ICON_MAP = {
   Globe, Calculator, Terminal, Cpu, Clock, FolderOpen, Monitor, Timer, Mail, Zap,
+  Code, FileText, ClipboardList, Search, BarChart3,
 };
 
 export default function SkillsDashboard({ onClose }) {

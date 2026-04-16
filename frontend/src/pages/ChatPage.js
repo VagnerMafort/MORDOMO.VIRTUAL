@@ -4,6 +4,7 @@ import Sidebar from '@/components/Sidebar';
 import ChatArea from '@/components/ChatArea';
 import SettingsPanel from '@/components/SettingsPanel';
 import SkillsDashboard from '@/components/SkillsDashboard';
+import AgentManager from '@/components/AgentManager';
 import { Menu } from 'lucide-react';
 
 export default function ChatPage() {
@@ -13,6 +14,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSkills, setShowSkills] = useState(false);
+  const [showAgents, setShowAgents] = useState(false);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -59,6 +61,16 @@ export default function ChatPage() {
     setConversations(prev => prev.map(c => c.id === convId ? { ...c, title, updated_at: new Date().toISOString() } : c));
   };
 
+  const startAgentChat = async (agent) => {
+    try {
+      const { data } = await api.post('/conversations', { title: `[${agent.name}] Nova Conversa`, agent_id: agent.id });
+      setConversations(prev => [data, ...prev]);
+      setActiveConvId(data.id);
+      setShowAgents(false);
+      setSidebarOpen(false);
+    } catch (e) { console.error(e); }
+  };
+
   return (
     <div data-testid="chat-page" className="h-screen flex overflow-hidden" style={{ background: 'var(--bg-base)' }}>
       {/* Mobile sidebar overlay */}
@@ -83,6 +95,7 @@ export default function ChatPage() {
           onRename={renameConversation}
           onOpenSettings={() => { setShowSettings(true); setSidebarOpen(false); }}
           onOpenSkills={() => { setShowSkills(true); setSidebarOpen(false); }}
+          onOpenAgents={() => { setShowAgents(true); setSidebarOpen(false); }}
         />
       </div>
 
@@ -119,6 +132,8 @@ export default function ChatPage() {
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
       {/* Skills Modal */}
       {showSkills && <SkillsDashboard onClose={() => setShowSkills(false)} />}
+      {/* Agents Modal */}
+      {showAgents && <AgentManager onClose={() => setShowAgents(false)} onStartChat={startAgentChat} />}
     </div>
   );
 }

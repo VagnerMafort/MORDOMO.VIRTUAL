@@ -1,8 +1,8 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Settings, Cpu, Trash2, MessageSquare, LogOut, Zap, Pencil, Check, X } from 'lucide-react';
+import { Plus, Settings, Cpu, Trash2, MessageSquare, LogOut, Zap, Pencil, Check, X, Bot } from 'lucide-react';
 import { useState } from 'react';
 
-export default function Sidebar({ conversations, activeConvId, onSelect, onCreate, onDelete, onRename, onOpenSettings, onOpenSkills }) {
+export default function Sidebar({ conversations, activeConvId, onSelect, onCreate, onDelete, onRename, onOpenSettings, onOpenSkills, onOpenAgents }) {
   const { user, logout } = useAuth();
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -119,6 +119,16 @@ export default function Sidebar({ conversations, activeConvId, onSelect, onCreat
 
       {/* Bottom actions */}
       <div className="p-3 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+        <button
+          data-testid="open-agents-btn"
+          onClick={onOpenAgents}
+          className="w-full py-2 px-3 text-xs font-medium flex items-center gap-2 transition-colors"
+          style={{ color: 'var(--text-secondary)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+        >
+          <Bot className="w-4 h-4" /> Meus Agentes
+        </button>
         <button
           data-testid="open-skills-btn"
           onClick={onOpenSkills}

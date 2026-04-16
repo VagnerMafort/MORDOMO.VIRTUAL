@@ -79,6 +79,7 @@ class LoginInput(BaseModel):
 
 class ConversationCreate(BaseModel):
     title: Optional[str] = "Nova Conversa"
+    agent_id: Optional[str] = None
 
 class ConversationUpdate(BaseModel):
     title: str
@@ -100,6 +101,36 @@ class CredentialCreate(BaseModel):
 
 class CredentialUpdate(BaseModel):
     key_value: str
+
+class AgentCreate(BaseModel):
+    name: str
+    description: str = ""
+    icon: str = "Bot"
+    system_prompt: str = ""
+    skills_enabled: List[str] = []
+
+class AgentUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    icon: Optional[str] = None
+    system_prompt: Optional[str] = None
+    skills_enabled: Optional[List[str]] = None
+
+class NoteCreate(BaseModel):
+    title: str
+    content: str = ""
+    tags: List[str] = []
+
+class TaskCreate(BaseModel):
+    title: str
+    description: str = ""
+    priority: str = "medium"
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    done: Optional[bool] = None
+    priority: Optional[str] = None
 
 # ─── Auth Routes ──────────────────────────────────────────────────────────────
 from fastapi.responses import JSONResponse
@@ -201,6 +232,7 @@ async def create_conversation(body: ConversationCreate, request: Request):
         "id": conv_id,
         "user_id": user["_id"],
         "title": body.title or "Nova Conversa",
+        "agent_id": body.agent_id,
         "created_at": now,
         "updated_at": now
     }
@@ -238,70 +270,169 @@ async def list_messages(conv_id: str, request: Request):
 
 # ─── Skills System ───────────────────────────────────────────────────────────
 AVAILABLE_SKILLS = [
-    {"id": "web_scraper", "name": "Web Scraper", "description": "Extrair conteudo de paginas web", "icon": "Globe"},
-    {"id": "calculator", "name": "Calculadora", "description": "Calculos matematicos avancados", "icon": "Calculator"},
-    {"id": "code_runner", "name": "Executor de Codigo", "description": "Executar codigo Python", "icon": "Terminal"},
+    {"id": "code_executor", "name": "Executor de Codigo", "description": "Rodar Python, JS ou Bash com output real", "icon": "Terminal"},
+    {"id": "code_generator", "name": "Gerador de Codigo", "description": "Criar scripts e projetos completos", "icon": "Code"},
+    {"id": "web_scraper", "name": "Web Scraper", "description": "Extrair e analisar conteudo de paginas web", "icon": "Globe"},
+    {"id": "url_summarizer", "name": "Resumidor de URLs", "description": "Resumir artigos e paginas automaticamente", "icon": "FileText"},
+    {"id": "file_manager", "name": "Gerenciador de Arquivos", "description": "Criar, ler, editar e deletar arquivos", "icon": "FolderOpen"},
+    {"id": "notes_tasks", "name": "Notas e Tarefas", "description": "Gerenciar notas e lista de tarefas", "icon": "ClipboardList"},
+    {"id": "api_caller", "name": "Chamadas de API", "description": "Chamar qualquer API REST com GET/POST", "icon": "Zap"},
+    {"id": "calculator", "name": "Calculadora", "description": "Calculos matematicos e financeiros avancados", "icon": "Calculator"},
     {"id": "system_info", "name": "Info do Sistema", "description": "Informacoes do sistema operacional", "icon": "Cpu"},
     {"id": "datetime_info", "name": "Data e Hora", "description": "Data, hora e fusos horarios", "icon": "Clock"},
-    {"id": "file_manager", "name": "Gerenciador de Arquivos", "description": "Ler e escrever arquivos", "icon": "FolderOpen"},
-    {"id": "browser_automation", "name": "Automacao Web", "description": "Automatizar acoes no navegador", "icon": "Monitor"},
-    {"id": "cron_jobs", "name": "Tarefas Agendadas", "description": "Agendar tarefas recorrentes", "icon": "Timer"},
-    {"id": "email_manager", "name": "Gerenciador de E-mail", "description": "Enviar e ler e-mails", "icon": "Mail"},
-    {"id": "api_caller", "name": "Chamadas de API", "description": "Fazer requisicoes HTTP a APIs", "icon": "Zap"},
+    {"id": "browser_automation", "name": "Automacao Web", "description": "Automatizar acoes no navegador (VPS)", "icon": "Monitor"},
+    {"id": "cron_jobs", "name": "Tarefas Agendadas", "description": "Agendar tarefas recorrentes (VPS)", "icon": "Timer"},
+    {"id": "email_manager", "name": "Gerenciador de E-mail", "description": "Enviar e ler e-mails (VPS)", "icon": "Mail"},
 ]
 
-async def execute_skill(skill_id: str, args: dict) -> str:
+import subprocess, shutil
+
+def get_user_workspace(user_id: str) -> str:
+    ws = f"/tmp/novaclaw_ws/{user_id}"
+    os.makedirs(ws, exist_ok=True)
+    return ws
+
+async def execute_skill(skill_id: str, args: dict, user_id: str = None) -> str:
     try:
-        if skill_id == "web_scraper":
+        if skill_id == "code_executor":
+            code = args.get("code", "")
+            lang = args.get("language", "python").lower()
+            if lang in ("python", "py"):
+                proc = subprocess.run(["python3", "-c", code], capture_output=True, text=True, timeout=15, cwd=get_user_workspace(user_id) if user_id else "/tmp")
+            elif lang in ("javascript", "js", "node"):
+                proc = subprocess.run(["node", "-e", code], capture_output=True, text=True, timeout=15)
+            elif lang in ("bash", "sh"):
+                proc = subprocess.run(["bash", "-c", code], capture_output=True, text=True, timeout=15, cwd=get_user_workspace(user_id) if user_id else "/tmp")
+            else:
+                return f"Linguagem '{lang}' nao suportada. Use: python, javascript, bash"
+            output = proc.stdout
+            if proc.stderr:
+                output += f"\n[STDERR]: {proc.stderr}"
+            if proc.returncode != 0:
+                output += f"\n[Exit code: {proc.returncode}]"
+            return output[:3000] if output.strip() else "Codigo executado sem saida."
+
+        elif skill_id == "code_generator":
+            return "SKILL_PASSTHROUGH"
+
+        elif skill_id == "web_scraper":
             url = args.get("url", "")
+            selector = args.get("selector", "")
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as c:
-                r = await c.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                r = await c.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; NovaClaw/1.0)"})
                 from bs4 import BeautifulSoup
                 soup = BeautifulSoup(r.text, "html.parser")
-                for tag in soup(["script", "style", "nav", "footer", "header"]):
+                for tag in soup(["script", "style", "nav", "footer", "iframe", "noscript"]):
                     tag.decompose()
-                text = soup.get_text(separator="\n", strip=True)
-                return text[:3000]
+                if selector:
+                    elements = soup.select(selector)
+                    text = "\n".join(el.get_text(strip=True) for el in elements)
+                else:
+                    text = soup.get_text(separator="\n", strip=True)
+                # Also extract links and images
+                links = [a.get("href", "") for a in soup.find_all("a", href=True)[:10]]
+                result = text[:2500]
+                if links:
+                    result += "\n\n[Links encontrados]:\n" + "\n".join(links[:10])
+                return result
+
+        elif skill_id == "url_summarizer":
+            url = args.get("url", "")
+            async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as c:
+                r = await c.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; NovaClaw/1.0)"})
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(r.text, "html.parser")
+                title = soup.title.string if soup.title else "Sem titulo"
+                for tag in soup(["script", "style", "nav", "footer", "iframe", "noscript", "header"]):
+                    tag.decompose()
+                paragraphs = soup.find_all(["p", "article", "section"])
+                text = "\n".join(p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True))
+                return f"Titulo: {title}\n\nConteudo extraido ({len(text)} chars):\n{text[:3000]}"
+
+        elif skill_id == "file_manager":
+            action = args.get("action", "list")
+            ws = get_user_workspace(user_id) if user_id else "/tmp/novaclaw_ws/default"
+            filename = args.get("filename", "")
+            filepath = os.path.join(ws, filename) if filename else ws
+
+            if action == "list":
+                files = []
+                for f in os.listdir(ws):
+                    full = os.path.join(ws, f)
+                    size = os.path.getsize(full) if os.path.isfile(full) else 0
+                    ftype = "dir" if os.path.isdir(full) else "file"
+                    files.append(f"{ftype}: {f} ({size} bytes)")
+                return "\n".join(files) if files else "Workspace vazio."
+            elif action == "read":
+                if not os.path.exists(filepath):
+                    return f"Arquivo '{filename}' nao encontrado."
+                with open(filepath, "r") as f:
+                    return f.read()[:5000]
+            elif action == "write":
+                content = args.get("content", "")
+                os.makedirs(os.path.dirname(filepath), exist_ok=True) if "/" in filename else None
+                with open(filepath, "w") as f:
+                    f.write(content)
+                return f"Arquivo '{filename}' criado/atualizado ({len(content)} chars)."
+            elif action == "delete":
+                if os.path.exists(filepath):
+                    os.remove(filepath) if os.path.isfile(filepath) else shutil.rmtree(filepath)
+                    return f"'{filename}' deletado."
+                return f"'{filename}' nao encontrado."
+            return "Acao invalida. Use: list, read, write, delete"
+
+        elif skill_id == "notes_tasks":
+            return "SKILL_PASSTHROUGH"
+
         elif skill_id == "calculator":
             expr = args.get("expression", "")
-            safe = re.sub(r'[^0-9+\-*/().%\s]', '', expr)
+            safe_expr = re.sub(r'[^0-9+\-*/().%\s,]', '', expr)
             allowed = {"abs": abs, "round": round, "min": min, "max": max, "pow": pow,
                        "sqrt": math.sqrt, "sin": math.sin, "cos": math.cos, "tan": math.tan,
-                       "pi": math.pi, "e": math.e, "log": math.log}
-            result = eval(safe, {"__builtins__": {}}, allowed)
+                       "pi": math.pi, "e": math.e, "log": math.log, "log10": math.log10}
+            result = eval(safe_expr, {"__builtins__": {}}, allowed)
             return f"Resultado: {result}"
-        elif skill_id == "code_runner":
-            import subprocess
-            code = args.get("code", "")
-            proc = subprocess.run(["python3", "-c", code], capture_output=True, text=True, timeout=10)
-            output = proc.stdout or proc.stderr
-            return output[:2000] if output else "Codigo executado sem saida."
-        elif skill_id == "system_info":
-            import platform
-            info = {
-                "sistema": platform.system(),
-                "versao": platform.version(),
-                "maquina": platform.machine(),
-                "processador": platform.processor(),
-                "python": platform.python_version(),
-                "hostname": platform.node()
-            }
-            return json.dumps(info, indent=2, ensure_ascii=False)
-        elif skill_id == "datetime_info":
-            tz_name = args.get("timezone", "UTC")
-            now = datetime.now(timezone.utc)
-            return f"Data/Hora UTC: {now.strftime('%d/%m/%Y %H:%M:%S')}\nTimestamp: {now.timestamp()}"
+
         elif skill_id == "api_caller":
             url = args.get("url", "")
             method = args.get("method", "GET").upper()
-            async with httpx.AsyncClient(timeout=15.0) as c:
+            headers = args.get("headers", {})
+            body = args.get("body", None)
+            async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as c:
                 if method == "POST":
-                    r = await c.post(url, json=args.get("body", {}))
+                    r = await c.post(url, json=body, headers=headers)
+                elif method == "PUT":
+                    r = await c.put(url, json=body, headers=headers)
+                elif method == "DELETE":
+                    r = await c.delete(url, headers=headers)
                 else:
-                    r = await c.get(url)
-                return r.text[:3000]
+                    r = await c.get(url, headers=headers)
+                try:
+                    data = r.json()
+                    return json.dumps(data, indent=2, ensure_ascii=False)[:3000]
+                except Exception:
+                    return r.text[:3000]
+
+        elif skill_id == "system_info":
+            import platform
+            info = {"sistema": platform.system(), "versao": platform.version(),
+                    "maquina": platform.machine(), "python": platform.python_version(),
+                    "hostname": platform.node()}
+            # Add disk and memory if available
+            try:
+                disk = shutil.disk_usage("/")
+                info["disco_total"] = f"{disk.total // (1024**3)} GB"
+                info["disco_livre"] = f"{disk.free // (1024**3)} GB"
+            except Exception:
+                pass
+            return json.dumps(info, indent=2, ensure_ascii=False)
+
+        elif skill_id == "datetime_info":
+            now = datetime.now(timezone.utc)
+            return f"Data/Hora UTC: {now.strftime('%d/%m/%Y %H:%M:%S')}\nTimestamp: {now.timestamp()}\nDia da semana: {now.strftime('%A')}"
+
         else:
-            return f"Skill '{skill_id}' disponivel apenas quando implantado na VPS com acesso completo ao sistema."
+            return f"Skill '{skill_id}' disponivel na VPS com acesso completo ao sistema."
     except Exception as e:
         return f"Erro ao executar skill: {str(e)}"
 
@@ -549,29 +680,41 @@ async def telegram_webhook(user_id: str, request: Request):
         return {"ok": True}
 
 # ─── LLM & Streaming ────────────────────────────────────────────────────────
-SYSTEM_PROMPT = """Voce e o NovaClaw, um assistente AI pessoal avancado e mordomo virtual. Voce foi criado para executar tarefas online e auxiliar o usuario em qualquer necessidade.
+SYSTEM_PROMPT = """Voce e o NovaClaw, um mordomo virtual AI avancado. Voce executa tarefas reais para o usuario.
 
-Suas capacidades incluem:
-- Responder perguntas com conhecimento profundo
-- Ajudar com programacao e codigo
-- Analisar e extrair dados da web
-- Fazer calculos matematicos
-- Executar codigo Python
-- Fornecer informacoes do sistema
-- Gerenciar tarefas e lembretes
+## SUAS HABILIDADES (use o formato exato abaixo quando precisar executar):
 
-Quando precisar usar uma habilidade especial, responda com o formato:
-[SKILL:nome_skill] {"parametro": "valor"}
+[SKILL:code_executor] {"code": "print('hello')", "language": "python"}
+- Executa Python, JavaScript ou Bash. Parametro "language": "python"|"javascript"|"bash"
 
-Skills disponiveis:
-- [SKILL:web_scraper] {"url": "https://..."} - Extrair conteudo de uma pagina
-- [SKILL:calculator] {"expression": "2+2"} - Calcular expressao matematica
-- [SKILL:code_runner] {"code": "print('hello')"} - Executar codigo Python
-- [SKILL:system_info] {} - Info do sistema
-- [SKILL:datetime_info] {"timezone": "UTC"} - Data e hora atual
-- [SKILL:api_caller] {"url": "...", "method": "GET"} - Chamar uma API
+[SKILL:web_scraper] {"url": "https://example.com", "selector": ""}
+- Extrai conteudo de uma pagina. "selector" CSS opcional (ex: ".article-body", "h1")
 
-Responda sempre em portugues brasileiro. Seja preciso, util e proativo. Use markdown para formatacao quando apropriado."""
+[SKILL:url_summarizer] {"url": "https://example.com"}
+- Extrai e retorna o conteudo principal de um artigo/pagina para voce resumir
+
+[SKILL:file_manager] {"action": "write", "filename": "script.py", "content": "print('hi')"}
+- Acoes: "list" (listar workspace), "read" (ler arquivo), "write" (criar/editar), "delete"
+
+[SKILL:calculator] {"expression": "sqrt(144) + pow(2,10)"}
+- Calculos com: sqrt, sin, cos, tan, log, log10, pi, e, pow, abs, round, min, max
+
+[SKILL:api_caller] {"url": "https://api.example.com/data", "method": "GET", "headers": {}, "body": null}
+- Metodos: GET, POST, PUT, DELETE
+
+[SKILL:system_info] {}
+- Retorna info do sistema (OS, RAM, disco, Python version)
+
+[SKILL:datetime_info] {}
+- Data e hora atual
+
+## REGRAS:
+- Quando o usuario pedir para executar, rodar, ou criar algo, USE A SKILL APROPRIADA
+- Quando pedir para analisar codigo, analise diretamente sem executar
+- Para criar arquivos ou projetos, use file_manager com action "write"
+- Responda SEMPRE em portugues brasileiro
+- Use markdown para formatacao
+- Seja proativo: se pode resolver com uma skill, use-a"""
 
 def build_messages(history: list, user_msg: str) -> list:
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -620,7 +763,7 @@ async def chat_emergent_fallback(messages: list) -> str:
         logger.error(f"Emergent fallback error: {e}")
         return f"Desculpe, ocorreu um erro ao processar sua mensagem. Erro: {str(e)}"
 
-async def process_skill_calls(text: str) -> tuple:
+async def process_skill_calls(text: str, user_id: str = None) -> tuple:
     """Check for skill calls in LLM response and execute them."""
     skill_pattern = r'\[SKILL:(\w+)\]\s*(\{[^}]*\})'
     matches = re.findall(skill_pattern, text)
@@ -632,7 +775,9 @@ async def process_skill_calls(text: str) -> tuple:
             args = json.loads(args_str)
         except json.JSONDecodeError:
             args = {}
-        result = await execute_skill(skill_id, args)
+        result = await execute_skill(skill_id, args, user_id)
+        if result == "SKILL_PASSTHROUGH":
+            continue
         skill_results.append({"skill": skill_id, "args": args, "result": result})
         text = text.replace(f"[SKILL:{skill_id}] {args_str}", f"\n**[Executando: {skill_id}]**\n```\n{result}\n```\n")
     return text, skill_results
@@ -662,6 +807,15 @@ async def send_message(conv_id: str, body: MessageCreate, request: Request):
     ollama_model = settings.get("ollama_model", OLLAMA_MODEL) if settings else OLLAMA_MODEL
     messages = build_messages(history[:-1], body.content)
 
+    # If conversation has an agent, use agent's system prompt
+    agent_prompt = None
+    if conv.get("agent_id"):
+        agent = await db.agents.find_one({"id": conv["agent_id"]})
+        if agent and agent.get("system_prompt"):
+            agent_prompt = agent["system_prompt"]
+    if agent_prompt:
+        messages[0] = {"role": "system", "content": agent_prompt}
+
     ai_msg_id = str(uuid.uuid4())
 
     async def event_stream():
@@ -675,7 +829,7 @@ async def send_message(conv_id: str, body: MessageCreate, request: Request):
             yield f"data: {json.dumps({'type': 'status', 'content': 'Usando modelo de fallback...'})}\n\n"
             response_text = await chat_emergent_fallback(messages)
             # Check for skill calls
-            response_text, skill_results = await process_skill_calls(response_text)
+            response_text, skill_results = await process_skill_calls(response_text, user["_id"])
             for sr in skill_results:
                 yield f"data: {json.dumps({'type': 'skill', 'skill': sr['skill'], 'result': sr['result']})}\n\n"
             # Stream the response in chunks to simulate streaming
@@ -687,7 +841,7 @@ async def send_message(conv_id: str, body: MessageCreate, request: Request):
 
         # Check for skill calls in streamed response
         if full_response and not full_response.startswith(""):
-            processed, skill_results = await process_skill_calls(full_response)
+            processed, skill_results = await process_skill_calls(full_response, user["_id"])
             if skill_results:
                 full_response = processed
                 for sr in skill_results:
@@ -702,6 +856,126 @@ async def send_message(conv_id: str, body: MessageCreate, request: Request):
         yield f"data: {json.dumps({'type': 'done', 'message_id': ai_msg_id})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+# ─── Agents System ───────────────────────────────────────────────────────────
+AGENT_TEMPLATES = [
+    {"id": "coder", "name": "Dev Expert", "icon": "Code", "description": "Especialista em programacao - cria, analisa e roda codigo",
+     "system_prompt": "Voce e um especialista em programacao. Crie, analise, debug e execute codigo. Use [SKILL:code_executor] para rodar e [SKILL:file_manager] para criar arquivos. Sempre mostre o codigo e o output real. Responda em PT-BR."},
+    {"id": "researcher", "name": "Pesquisador Web", "icon": "Search", "description": "Pesquisa e extrai informacoes da web",
+     "system_prompt": "Voce e um pesquisador expert. Use [SKILL:web_scraper] e [SKILL:url_summarizer] para extrair dados da web. Use [SKILL:api_caller] para APIs publicas. Sempre cite as fontes. Responda em PT-BR."},
+    {"id": "analyst", "name": "Analista de Dados", "icon": "BarChart3", "description": "Analisa dados, metricas e faz calculos complexos",
+     "system_prompt": "Voce e um analista de dados. Use [SKILL:calculator] para calculos, [SKILL:code_executor] com pandas/matplotlib para analises, [SKILL:api_caller] para buscar dados. Crie visualizacoes e relatorios. Responda em PT-BR."},
+    {"id": "automator", "name": "Automatizador", "icon": "Workflow", "description": "Cria automacoes e scripts para tarefas repetitivas",
+     "system_prompt": "Voce e um especialista em automacao. Crie scripts que automatizem tarefas. Use [SKILL:code_executor] para testar, [SKILL:file_manager] para salvar scripts, [SKILL:api_caller] para integracoes. Responda em PT-BR."},
+]
+
+@api_router.get("/agents")
+async def list_agents(request: Request):
+    user = await get_current_user(request)
+    agents = await db.agents.find({"user_id": user["_id"]}, {"_id": 0}).to_list(50)
+    return {"custom": agents, "templates": AGENT_TEMPLATES}
+
+@api_router.post("/agents")
+async def create_agent(body: AgentCreate, request: Request):
+    user = await get_current_user(request)
+    agent_id = str(uuid.uuid4())
+    doc = {
+        "id": agent_id, "user_id": user["_id"],
+        "name": body.name, "description": body.description,
+        "icon": body.icon, "system_prompt": body.system_prompt,
+        "skills_enabled": body.skills_enabled,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.agents.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@api_router.post("/agents/from-template/{template_id}")
+async def create_agent_from_template(template_id: str, request: Request):
+    user = await get_current_user(request)
+    tmpl = next((t for t in AGENT_TEMPLATES if t["id"] == template_id), None)
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template nao encontrado")
+    agent_id = str(uuid.uuid4())
+    doc = {
+        "id": agent_id, "user_id": user["_id"],
+        "name": tmpl["name"], "description": tmpl["description"],
+        "icon": tmpl["icon"], "system_prompt": tmpl["system_prompt"],
+        "skills_enabled": [],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.agents.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@api_router.put("/agents/{agent_id}")
+async def update_agent(agent_id: str, body: AgentUpdate, request: Request):
+    user = await get_current_user(request)
+    update_data = {k: v for k, v in body.model_dump().items() if v is not None}
+    if update_data:
+        await db.agents.update_one({"id": agent_id, "user_id": user["_id"]}, {"$set": update_data})
+    agent = await db.agents.find_one({"id": agent_id, "user_id": user["_id"]}, {"_id": 0})
+    return agent
+
+@api_router.delete("/agents/{agent_id}")
+async def delete_agent(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    await db.agents.delete_one({"id": agent_id, "user_id": user["_id"]})
+    return {"message": "Agente deletado"}
+
+# ─── Notes & Tasks ───────────────────────────────────────────────────────────
+@api_router.get("/notes")
+async def list_notes(request: Request):
+    user = await get_current_user(request)
+    notes = await db.notes.find({"user_id": user["_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return notes
+
+@api_router.post("/notes")
+async def create_note(body: NoteCreate, request: Request):
+    user = await get_current_user(request)
+    note_id = str(uuid.uuid4())
+    doc = {"id": note_id, "user_id": user["_id"], "title": body.title,
+           "content": body.content, "tags": body.tags, "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.notes.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@api_router.delete("/notes/{note_id}")
+async def delete_note(note_id: str, request: Request):
+    user = await get_current_user(request)
+    await db.notes.delete_one({"id": note_id, "user_id": user["_id"]})
+    return {"message": "Nota deletada"}
+
+@api_router.get("/tasks")
+async def list_tasks(request: Request):
+    user = await get_current_user(request)
+    tasks = await db.tasks.find({"user_id": user["_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return tasks
+
+@api_router.post("/tasks")
+async def create_task(body: TaskCreate, request: Request):
+    user = await get_current_user(request)
+    task_id = str(uuid.uuid4())
+    doc = {"id": task_id, "user_id": user["_id"], "title": body.title,
+           "description": body.description, "priority": body.priority, "done": False,
+           "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.tasks.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@api_router.put("/tasks/{task_id}")
+async def update_task(task_id: str, body: TaskUpdate, request: Request):
+    user = await get_current_user(request)
+    update_data = {k: v for k, v in body.model_dump().items() if v is not None}
+    await db.tasks.update_one({"id": task_id, "user_id": user["_id"]}, {"$set": update_data})
+    task = await db.tasks.find_one({"id": task_id, "user_id": user["_id"]}, {"_id": 0})
+    return task
+
+@api_router.delete("/tasks/{task_id}")
+async def delete_task(task_id: str, request: Request):
+    user = await get_current_user(request)
+    await db.tasks.delete_one({"id": task_id, "user_id": user["_id"]})
+    return {"message": "Tarefa deletada"}
 
 # ─── Health & Root ───────────────────────────────────────────────────────────
 @api_router.get("/")
@@ -742,6 +1016,9 @@ async def startup():
     await db.credentials.create_index([("user_id", 1), ("service", 1)])
     await db.telegram_connections.create_index("user_id", unique=True)
     await db.telegram_messages.create_index([("user_id", 1), ("created_at", -1)])
+    await db.agents.create_index([("user_id", 1)])
+    await db.notes.create_index([("user_id", 1), ("created_at", -1)])
+    await db.tasks.create_index([("user_id", 1), ("created_at", -1)])
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@novaclaw.com")
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
