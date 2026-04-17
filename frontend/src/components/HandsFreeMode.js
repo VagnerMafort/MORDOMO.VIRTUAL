@@ -255,6 +255,11 @@ export default function HandsFreeMode({ onClose, agentName }) {
       console.warn('[HandsFree] Erro reconhecimento:', e.error);
       if (e.error === 'no-speech' && autoRestart.current) {
         try { rec.start(); } catch {}
+      } else if (e.error === 'network' && autoRestart.current) {
+        // Edge/Chrome envia audio pro servidor Google pra transcrever. Se falhar, tenta de novo em 2s
+        setTimeout(() => { try { rec.start(); } catch {} }, 2000);
+      } else if (e.error === 'aborted') {
+        // Normal - ignorar
       } else if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         alert('Permissao de microfone negada. Autorize o microfone nas configuracoes do navegador e recarregue a pagina.');
         autoRestart.current = false;
@@ -284,6 +289,7 @@ export default function HandsFreeMode({ onClose, agentName }) {
     setState(STATES.PROCESSING);
     setHistory(prev => [...prev, { role: 'user', text }]);
     setTranscript('');
+    let spokeOnce = false;  // previne chamada dupla
     try {
       const res = await fetch(`${BACKEND_URL}/api/conversations/${cid}/messages`, {
         method: 'POST',
@@ -303,7 +309,8 @@ export default function HandsFreeMode({ onClose, agentName }) {
           try {
             const data = JSON.parse(line.slice(6));
             if (data.type === 'token') { fullContent += data.content; setResponse(fullContent); }
-            else if (data.type === 'done') {
+            else if (data.type === 'done' && !spokeOnce) {
+              spokeOnce = true;
               setHistory(prev => [...prev, { role: 'assistant', text: fullContent }]);
               speakResponse(fullContent);
             }
@@ -311,13 +318,9 @@ export default function HandsFreeMode({ onClose, agentName }) {
         }
       }
       // Fallback: se o backend terminou mas nao enviou evento 'done', fala mesmo assim
-      if (fullContent && state !== STATES.SPEAKING) {
-        setHistory(prev => {
-          if (prev[prev.length - 1]?.role !== 'assistant') {
-            return [...prev, { role: 'assistant', text: fullContent }];
-          }
-          return prev;
-        });
+      if (fullContent && !spokeOnce) {
+        spokeOnce = true;
+        setHistory(prev => [...prev, { role: 'assistant', text: fullContent }]);
         speakResponse(fullContent);
       }
     } catch (e) {
@@ -325,7 +328,7 @@ export default function HandsFreeMode({ onClose, agentName }) {
       setState(STATES.IDLE);
       if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 800);
     }
-  }, [convId, getToken, state]);
+  }, [convId, getToken]);
 
   // Sincroniza ref de sendMessage
   useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
@@ -333,6 +336,21 @@ export default function HandsFreeMode({ onClose, agentName }) {
   const speakResponse = useCallback((text) => {
     setState(STATES.SPEAKING);
     addDebug(`TTS start: ${text.length} chars`);
+
+    // CRITICAL: Para microfone/analisador ANTES de falar (AudioContext conflita com TTS no Windows/Edge)
+    try {
+      cancelAnimationFrame(volumeLoopRef.current);
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+        audioCtxRef.current.close();
+      }
+      audioCtxRef.current = null;
+      volumeRef.current = 0;
+    } catch (e) {
+      console.warn('[HandsFree] Falha ao fechar mic antes do TTS:', e);
+    }
+
     const clean = text.replace(/```[\s\S]*?```/g, '').replace(/`[^`]+`/g, '')
       .replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1')
       .replace(/#{1,3}\s/g, '').replace(/\[SKILL:[^\]]+\][^`]*/g, '')
@@ -401,6 +419,13 @@ export default function HandsFreeMode({ onClose, agentName }) {
       if (chunks.length === 0) chunks.push(textToSpeak);
 
       let idx = 0;
+      // Prime do Edge/Chrome: fala um utterance vazio rapidinho pra "desbloquear" o audio
+      try {
+        const primer = new SpeechSynthesisUtterance(' ');
+        primer.volume = 0;
+        synth.speak(primer);
+      } catch {}
+
       const speakNext = () => {
         if (finished) return;
         if (idx >= chunks.length) {
@@ -414,21 +439,30 @@ export default function HandsFreeMode({ onClose, agentName }) {
         utt.pitch = 1;
         utt.volume = 1;
 
-        // Timeout por chunk (alguns TTS nao disparam onend)
+        // Timeout por chunk mais generoso (ms por char + base)
+        const chunkTimeoutMs = Math.max(15000, chunks[idx].length * 150);
         const chunkTimeout = setTimeout(() => {
-          console.warn('[HandsFree] chunk timeout, pulando');
+          addDebug(`chunk ${idx + 1}/${chunks.length} timeout (${chunkTimeoutMs}ms)`);
           idx++;
           speakNext();
-        }, Math.max(5000, chunks[idx].length * 100));
+        }, chunkTimeoutMs);
 
+        utt.onstart = () => {
+          addDebug(`chunk ${idx + 1}/${chunks.length} tocando`);
+        };
         utt.onend = () => {
           clearTimeout(chunkTimeout);
           idx++;
           speakNext();
         };
         utt.onerror = (e) => {
-          console.warn('[HandsFree] TTS erro:', e.error || e);
+          addDebug(`chunk erro: ${e.error || 'unknown'}`);
           clearTimeout(chunkTimeout);
+          // Se foi 'interrupted', nao conta como erro - so finaliza
+          if (e.error === 'interrupted' || e.error === 'canceled') {
+            finishOnce(`interrupted-${idx}`);
+            return;
+          }
           idx++;
           speakNext();
         };
@@ -444,7 +478,7 @@ export default function HandsFreeMode({ onClose, agentName }) {
         }
       };
       // Pequeno delay pro Chrome liberar o audio do microfone
-      setTimeout(speakNext, 250);
+      setTimeout(speakNext, 400);
     };
 
     // Garante que as vozes foram carregadas
