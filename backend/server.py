@@ -159,7 +159,7 @@ async def register(body: RegisterInput):
     await db.settings.insert_one({
         "user_id": user_id, "ollama_url": OLLAMA_URL, "ollama_model": OLLAMA_MODEL,
         "tts_enabled": True, "tts_language": "pt-BR",
-        "skills_enabled": ["code_executor", "web_scraper", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
+        "skills_enabled": ["code_executor", "web_scraper", "web_search", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
         "agent_name": "Mordomo Virtual",
         "agent_personality": ""
     })
@@ -287,6 +287,7 @@ AVAILABLE_SKILLS = [
     {"id": "calculator", "name": "Calculadora", "description": "Calculos matematicos e financeiros avancados", "icon": "Calculator"},
     {"id": "system_info", "name": "Info do Sistema", "description": "Informacoes do sistema operacional", "icon": "Cpu"},
     {"id": "datetime_info", "name": "Data e Hora", "description": "Data, hora e fusos horarios", "icon": "Clock"},
+    {"id": "web_search", "name": "Pesquisa na Internet", "description": "Buscar informacoes atuais na web em tempo real", "icon": "Search"},
     {"id": "browser_automation", "name": "Automacao Web", "description": "Automatizar acoes no navegador (VPS)", "icon": "Monitor"},
     {"id": "cron_jobs", "name": "Tarefas Agendadas", "description": "Agendar tarefas recorrentes (VPS)", "icon": "Timer"},
     {"id": "email_manager", "name": "Gerenciador de E-mail", "description": "Enviar e ler e-mails (VPS)", "icon": "Mail"},
@@ -321,6 +322,14 @@ async def execute_skill(skill_id: str, args: dict, user_id: str = None) -> str:
 
         elif skill_id == "code_generator":
             return "SKILL_PASSTHROUGH"
+
+        elif skill_id == "web_search":
+            import web_search as ws_mod
+            query = args.get("query", "").strip()
+            if not query:
+                return "Erro: informe 'query' para buscar"
+            results = await ws_mod.web_search(query, max_results=5)
+            return ws_mod.format_results_for_llm(results, query)
 
         elif skill_id == "web_scraper":
             url = args.get("url", "")
@@ -481,7 +490,7 @@ async def get_settings(request: Request):
             "tts_language": "pt-BR",
             "agent_name": "Mordomo Virtual",
             "agent_personality": "",
-            "skills_enabled": ["code_executor", "web_scraper", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
+            "skills_enabled": ["code_executor", "web_scraper", "web_search", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
         }
         await db.settings.insert_one(default)
         default.pop("_id", None)
@@ -1105,6 +1114,14 @@ async def health():
         pass
     return {"status": "online", "ollama": ollama_ok, "fallback": bool(EMERGENT_KEY)}
 
+
+@api_router.get("/web/search")
+async def web_search_endpoint(q: str, max_results: int = 5, user: dict = Depends(get_current_user)):
+    """Busca web em tempo real. Retorna resultados estruturados."""
+    import web_search as ws_mod
+    results = await ws_mod.web_search(q, max_results=min(max_results, 10))
+    return {"query": q, "results": results, "count": len(results)}
+
 @api_router.get("/docs/manual")
 async def download_manual(format: str = "pdf"):
     """Download the user manual in PDF or Markdown format."""
@@ -1310,7 +1327,7 @@ async def startup():
         await db.settings.insert_one({
             "user_id": user_id, "ollama_url": OLLAMA_URL, "ollama_model": OLLAMA_MODEL,
             "tts_enabled": True, "tts_language": "pt-BR",
-            "skills_enabled": ["code_executor", "web_scraper", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
+            "skills_enabled": ["code_executor", "web_scraper", "web_search", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
         "agent_name": "Mordomo Virtual",
         "agent_personality": ""
         })

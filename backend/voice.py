@@ -181,7 +181,7 @@ async def speak_text(text: str = Query(..., max_length=5000)):
             # length_scale < 1.0 = mais rapido, > 1.0 = mais lento
             # noise_scale baixo = mais monotonico. Default 0.667 fica natural.
             from piper.config import SynthesisConfig
-            cfg = SynthesisConfig(length_scale=0.85, noise_scale=0.667, noise_w_scale=0.8)
+            cfg = SynthesisConfig(length_scale=0.95, noise_scale=0.667, noise_w_scale=0.8)
             voice.synthesize_wav(text, wav, syn_config=cfg)
         finally:
             wav.close()
