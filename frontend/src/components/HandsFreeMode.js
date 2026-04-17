@@ -310,7 +310,7 @@ export default function HandsFreeMode({ onClose, agentName }) {
     } catch (e) {
       console.error('[HandsFree] Erro ao enviar:', e);
       setState(STATES.IDLE);
-      if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 800);
+      if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 200);
     }
   }, [convId, getToken]);
 
@@ -328,7 +328,7 @@ export default function HandsFreeMode({ onClose, agentName }) {
     if (!clean) {
       addDebug('TTS: texto vazio apos limpar');
       setState(STATES.IDLE);
-      if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 500);
+      if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 100);
       return;
     }
 
@@ -336,7 +336,7 @@ export default function HandsFreeMode({ onClose, agentName }) {
     if (!synth) {
       addDebug('ERRO: speechSynthesis nao suportado');
       setState(STATES.IDLE);
-      if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 500);
+      if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 100);
       return;
     }
 
@@ -353,7 +353,7 @@ export default function HandsFreeMode({ onClose, agentName }) {
       addDebug(`TTS fim: ${reason}`);
       try { synth.cancel(); } catch {}
       setState(STATES.IDLE);
-      if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 300);
+      if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 80);
     };
     hardTimeoutId = setTimeout(() => finishOnce('timeout-45s'), 45000);
 
@@ -398,8 +398,8 @@ export default function HandsFreeMode({ onClose, agentName }) {
         const utt = new SpeechSynthesisUtterance(chunks[idx]);
         if (ptVoice) utt.voice = ptVoice;
         utt.lang = (ptVoice && ptVoice.lang) || 'pt-BR';
-        utt.rate = 1.05;
-        utt.pitch = 1;
+        utt.rate = 1.2;
+        utt.pitch = 1.05;
         utt.volume = 1;
 
         // Timeout por chunk mais generoso (ms por char + base)
@@ -440,8 +440,8 @@ export default function HandsFreeMode({ onClose, agentName }) {
           speakNext();
         }
       };
-      // Pequeno delay pro Chrome liberar o audio do microfone
-      setTimeout(speakNext, 400);
+      // Inicio quase imediato (apenas 80ms pra o navegador processar)
+      setTimeout(speakNext, 80);
     };
 
     // Garante que as vozes foram carregadas
