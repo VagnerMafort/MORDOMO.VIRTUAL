@@ -309,6 +309,13 @@ async def kill_session(session_id: str, admin: dict = Depends(require_admin)):
     return {"message": "Sessão encerrada"}
 
 # ─── ADMIN: Dashboard Summary ─────────────────────────────────────────────────
+@router.get("/alerts")
+async def get_system_alerts(admin: dict = Depends(require_admin), limit: int = 50):
+    """System Watchdog alerts (mongo/ollama/disk/ram)."""
+    alerts = await db.system_alerts.find({}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    return alerts
+
+
 @router.get("/dashboard")
 async def admin_dashboard(admin: dict = Depends(require_admin)):
     total_users = await db.users.count_documents({})

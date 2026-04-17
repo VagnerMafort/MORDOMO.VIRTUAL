@@ -483,6 +483,7 @@ export default function SettingsPanel({ onClose }) {
                       </p>
                     </div>
                   )}
+                  <VoiceProfileSelector settings={settings} setSettings={setSettings} />
                 </div>
               </div>
 
@@ -545,6 +546,64 @@ cd frontend && yarn && yarn build
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+
+// ─── Voice Profile Selector (FASE 6) ─────────────────────────────────────────
+function VoiceProfileSelector({ settings, setSettings }) {
+  const { api } = useAuth();
+  const [voices, setVoices] = useState([]);
+  const [testing, setTesting] = useState(false);
+  useEffect(() => {
+    api.get('/voice/voices').then(r => setVoices(r.data.voices || [])).catch(() => {});
+  }, [api]);
+  const testVoice = async () => {
+    setTesting(true);
+    try {
+      const url = `${process.env.REACT_APP_BACKEND_URL}/api/voice/speak?text=${encodeURIComponent('Olá, eu sou seu Kaelum ponto A I.')}&voice=${settings.voice_profile || ''}&speed=${settings.voice_speed || 1.0}`;
+      const resp = await fetch(url, { method: 'POST' });
+      if (!resp.ok) throw new Error('erro');
+      const blob = await resp.blob();
+      const audio = new Audio(URL.createObjectURL(blob));
+      await audio.play();
+    } catch { /* ignore */ }
+    setTesting(false);
+  };
+  return (
+    <div className="p-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+      <div className="mb-2">
+        <p className="text-sm font-semibold">Perfil de Voz</p>
+        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Escolha a voz que o Kaelum vai usar para falar</p>
+      </div>
+      <select
+        data-testid="voice-profile-select"
+        value={settings.voice_profile || ''}
+        onChange={e => setSettings({ ...settings, voice_profile: e.target.value })}
+        className="w-full px-2 py-1.5 text-xs mb-2"
+        style={{ background: 'var(--bg-base)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+      >
+        <option value="">(padrão do servidor)</option>
+        {voices.map(v => (
+          <option key={v.id} value={v.id}>{v.name} — {v.quality}</option>
+        ))}
+      </select>
+      <div className="mb-2">
+        <label className="text-[10px] uppercase tracking-wider block mb-1" style={{ color: 'var(--text-tertiary)' }}>
+          Velocidade: {(settings.voice_speed || 1.0).toFixed(2)}x
+        </label>
+        <input type="range" min="0.5" max="2.0" step="0.05"
+          value={settings.voice_speed || 1.0}
+          onChange={e => setSettings({ ...settings, voice_speed: parseFloat(e.target.value) })}
+          data-testid="voice-speed-range"
+          className="w-full" />
+      </div>
+      <button data-testid="voice-test-btn" onClick={testVoice} disabled={testing}
+        className="w-full py-1.5 text-xs font-semibold disabled:opacity-50"
+        style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}>
+        {testing ? 'Tocando...' : 'Testar voz'}
+      </button>
     </div>
   );
 }

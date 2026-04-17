@@ -1,18 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { X, Plug, Mail, HardDrive, FileSpreadsheet, Calendar, Youtube, CheckCircle2, XCircle, Link2 } from 'lucide-react';
+import { X, Plug, Mail, HardDrive, FileSpreadsheet, Calendar, Youtube, CheckCircle2, XCircle, Link2, Instagram, Facebook, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function IntegrationsPanel({ onClose }) {
   const { api } = useAuth();
   const [googleStatus, setGoogleStatus] = useState(null);
+  const [metaStatus, setMetaStatus] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
-    try {
-      const { data } = await api.get('/integrations/google/status');
-      setGoogleStatus(data);
-    } catch (e) { console.error(e); }
+    try { const { data } = await api.get('/integrations/google/status'); setGoogleStatus(data); } catch {}
+    try { const { data } = await api.get('/integrations/meta/status'); setMetaStatus(data); } catch {}
   }, [api]);
 
   useEffect(() => { load(); }, [load]);
@@ -21,22 +20,36 @@ export default function IntegrationsPanel({ onClose }) {
     setLoading(true);
     try {
       const { data } = await api.get('/integrations/google/start');
-      // Redireciona a janela principal para autorização do Google
       window.location.href = data.auth_url;
     } catch (e) {
-      const detail = e.response?.data?.detail || 'Erro ao iniciar fluxo OAuth';
-      toast.error(detail);
+      toast.error(e.response?.data?.detail || 'Erro ao iniciar Google OAuth');
+      setLoading(false);
+    }
+  };
+
+  const connectMeta = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get('/integrations/meta/start');
+      window.location.href = data.auth_url;
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Erro ao iniciar Meta OAuth');
       setLoading(false);
     }
   };
 
   const disconnectGoogle = async () => {
-    if (!window.confirm('Desconectar sua conta Google? Isso revoga os tokens.')) return;
-    try {
-      await api.post('/integrations/google/disconnect');
-      toast.success('Conta Google desconectada');
-      load();
-    } catch (e) { toast.error('Erro ao desconectar'); }
+    if (!window.confirm('Desconectar conta Google?')) return;
+    await api.post('/integrations/google/disconnect');
+    toast.success('Desconectado');
+    load();
+  };
+
+  const disconnectMeta = async () => {
+    if (!window.confirm('Desconectar conta Meta?')) return;
+    await api.post('/integrations/meta/disconnect');
+    toast.success('Desconectado');
+    load();
   };
 
   const SERVICE_ICONS = [
@@ -148,10 +161,81 @@ export default function IntegrationsPanel({ onClose }) {
             </div>
           )}
 
-          {/* Futuras integrações — placeholder visual */}
+          {/* Meta Card */}
+          {metaStatus && (
+            <div data-testid="meta-integration-card" className="p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(24,119,242,0.1)' }}>
+                    <Facebook className="w-6 h-6" style={{ color: '#1877f2' }} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Meta Business</h3>
+                    <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Instagram · Facebook · WhatsApp · DMs</p>
+                  </div>
+                </div>
+                {metaStatus.connected ? (
+                  <span className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>
+                    <CheckCircle2 className="w-3 h-3" /> Conectado
+                  </span>
+                ) : metaStatus.integration_available ? (
+                  <span className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: 'var(--bg-base)', color: 'var(--text-tertiary)' }}>
+                    <XCircle className="w-3 h-3" /> Desconectado
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--error)' }}>
+                    Não configurado pelo admin
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 mb-4 py-3 px-3" style={{ background: 'var(--bg-base)' }}>
+                {[{ Icon: Instagram, label: 'Instagram' }, { Icon: Facebook, label: 'Facebook' }, { Icon: MessageCircle, label: 'WhatsApp' }].map(({ Icon, label }) => (
+                  <div key={label} className="flex flex-col items-center gap-1 flex-1">
+                    <Icon className="w-4 h-4" style={{ color: metaStatus.connected ? 'var(--accent)' : 'var(--text-tertiary)' }} />
+                    <span className="text-[10px] tracking-wider uppercase" style={{ color: 'var(--text-tertiary)' }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {metaStatus.connected && metaStatus.account && (
+                <div className="mb-4 p-3" style={{ background: 'var(--bg-base)', border: '1px solid var(--border-subtle)' }}>
+                  <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{metaStatus.account.fb_name || '—'}</p>
+                  <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>{metaStatus.account.fb_email}</p>
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                    {(metaStatus.account.pages || []).length} página(s) · {(metaStatus.account.pages || []).filter(p => p.ig_account).length} IG Business
+                  </p>
+                </div>
+              )}
+
+              {metaStatus.connected ? (
+                <button data-testid="disconnect-meta-btn" onClick={disconnectMeta}
+                  className="w-full py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-2"
+                  style={{ background: 'var(--bg-elevated)', color: 'var(--error)', border: '1px solid rgba(239,68,68,0.3)' }}>
+                  <XCircle className="w-3.5 h-3.5" /> Desconectar
+                </button>
+              ) : (
+                <button data-testid="connect-meta-btn" onClick={connectMeta}
+                  disabled={!metaStatus.integration_available || loading}
+                  className="w-full py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{ background: '#1877f2', color: '#ffffff' }}>
+                  <Link2 className="w-3.5 h-3.5" />
+                  {loading ? 'Abrindo Meta...' : 'Conectar com Facebook'}
+                </button>
+              )}
+
+              {!metaStatus.integration_available && (
+                <p className="mt-3 text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+                  O administrador precisa configurar o App Meta (em Painel Admin → Integrações) antes de você conectar.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Futuras integrações */}
           <div className="p-4 opacity-50" style={{ background: 'var(--bg-surface)', border: '1px dashed var(--border-subtle)' }}>
             <p className="text-xs font-bold mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>Próximas integrações</p>
-            <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Meta (Instagram/WhatsApp), TikTok, Dropbox — em breve</p>
+            <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>TikTok, Dropbox, Notion — em breve</p>
           </div>
         </div>
       </div>

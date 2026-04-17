@@ -102,6 +102,8 @@ class SettingsUpdate(BaseModel):
     ollama_model_smart: Optional[str] = None
     tts_enabled: Optional[bool] = None
     tts_language: Optional[str] = None
+    voice_profile: Optional[str] = None
+    voice_speed: Optional[float] = None
     skills_enabled: Optional[List[str]] = None
     agent_name: Optional[str] = None
     agent_personality: Optional[str] = None
@@ -328,6 +330,9 @@ AVAILABLE_SKILLS = [
     {"id": "youtube", "name": "YouTube", "description": "Buscar videos, listar seu canal e ler comentarios", "icon": "Youtube"},
     {"id": "workflow", "name": "Fluxos de Trabalho", "description": "Executar fluxos salvos (encadeia varias skills)", "icon": "Workflow"},
     {"id": "social_publish", "name": "Publicar em Redes Sociais", "description": "Publica video/midia em multiplas redes de uma vez", "icon": "Share2"},
+    {"id": "instagram", "name": "Instagram", "description": "Publica no IG Business (foto/Reels)", "icon": "Instagram"},
+    {"id": "facebook", "name": "Facebook Pages", "description": "Publica post em Facebook Page", "icon": "Facebook"},
+    {"id": "whatsapp", "name": "WhatsApp Business", "description": "Envia mensagens via WhatsApp Cloud API", "icon": "MessageCircle"},
 ]
 
 import subprocess, shutil
@@ -386,6 +391,18 @@ async def execute_skill(skill_id: str, args: dict, user_id: str = None) -> str:
         elif skill_id == "social_publish":
             import social_publisher as sp
             return await sp.execute_social_publish(args, user_id)
+
+        elif skill_id == "instagram":
+            import meta_skills as ms
+            return await ms.execute_instagram(args, user_id)
+
+        elif skill_id == "facebook":
+            import meta_skills as ms
+            return await ms.execute_facebook(args, user_id)
+
+        elif skill_id == "whatsapp":
+            import meta_skills as ms
+            return await ms.execute_whatsapp(args, user_id)
 
         elif skill_id == "web_scraper":
             url = args.get("url", "")
@@ -849,6 +866,15 @@ SYSTEM_PROMPT = """Voce e o NovaClaw, um mordomo virtual AI avancado. Voce execu
 [SKILL:social_publish] {"title":"Meu video","description":"...","media_url":"https://...","networks":["youtube"]}
 - Publica um video/midia em varias redes de uma vez (YouTube ja funciona; Insta/TikTok/WhatsApp em breve)
 
+[SKILL:instagram] {"action":"publish","page_id":"...","caption":"...","image_url":"https://..."}
+- Acoes: "list" (contas IG disponiveis), "publish" (precisa page_id + image_url ou video_url)
+
+[SKILL:facebook] {"action":"publish","page_id":"...","message":"..."}
+- Acoes: "list_pages", "publish" (precisa page_id + message, link opcional)
+
+[SKILL:whatsapp] {"action":"send","phone_number_id":"...","to":"5511...","text":"Ola!"}
+- Envia mensagem WhatsApp Business (to sem '+', formato E.164)
+
 ## REGRAS:
 - Quando o usuario pedir para executar, rodar, ou criar algo, USE A SKILL APROPRIADA
 - Quando pedir para analisar codigo, analise diretamente sem executar
@@ -1287,6 +1313,16 @@ import social_publisher
 social_publisher.init(db, get_current_user, google_oauth.get_google_credentials)
 app.include_router(social_publisher.router)
 
+# Meta OAuth (FASE 2 — Instagram/Facebook/WhatsApp)
+import meta_oauth
+meta_oauth.init(db, get_current_user, os.environ["JWT_SECRET"])
+app.include_router(meta_oauth.router)
+
+# Meta Skills
+import meta_skills
+meta_skills.init(db, get_current_user, meta_oauth.get_meta_account)
+app.include_router(meta_skills.router)
+
 # Smart LLM
 import smart_llm
 smart_llm.init(db, OLLAMA_URL, "qwen2.5:7b", OLLAMA_MODEL)
@@ -1431,6 +1467,9 @@ async def startup():
     # Workflows (FASE 5)
     await db.workflows.create_index([("user_id", 1), ("name", 1)])
     await db.workflow_executions.create_index([("user_id", 1), ("started_at", -1)])
+    # Meta (FASE 2)
+    await db.meta_accounts.create_index("user_id", unique=True)
+    await db.meta_dm_rules.create_index([("user_id", 1), ("page_id", 1)])
     # Start rules evaluation engine
     asyncio.create_task(rules_engine.rules_evaluation_loop())
     # Start background task worker
@@ -1483,8 +1522,19 @@ async def startup():
             f.write(f"# Test Credentials\n\n## Admin\n- Email: {admin_email}\n- Password: {admin_password}\n- Role: admin\n\n## Auth Endpoints\n- POST /api/auth/register\n- POST /api/auth/login\n- POST /api/auth/logout\n- GET /api/auth/me\n- POST /api/auth/refresh\n")
     except Exception:
         pass
+    # System Watchdog (FASE 6)
+    try:
+        import system_watchdog
+        system_watchdog.start(db)
+    except Exception as e:
+        logger.error(f"watchdog falha ao iniciar: {e}")
 
 @app.on_event("shutdown")
 async def shutdown():
     rules_engine.stop()
+    try:
+        import system_watchdog
+        await system_watchdog.stop()
+    except Exception:
+        pass
     client.close()

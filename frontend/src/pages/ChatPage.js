@@ -69,6 +69,13 @@ export default function ChatPage() {
     } else if (params.get('google') === 'error') {
       toast.error(`Erro ao conectar Google: ${params.get('reason') || 'desconhecido'}`);
       window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('meta') === 'connected') {
+      toast.success('Conta Meta conectada com sucesso!');
+      setShowIntegrations(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('meta') === 'error') {
+      toast.error(`Erro ao conectar Meta: ${params.get('reason') || 'desconhecido'}`);
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
 

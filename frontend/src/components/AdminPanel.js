@@ -14,6 +14,7 @@ const TABS = [
   { id: 'usage', label: 'Uso', Icon: Gauge },
   { id: 'logs', label: 'Logs', Icon: FileText },
   { id: 'sessions', label: 'Sessões', Icon: Monitor },
+  { id: 'alerts', label: 'Alertas', Icon: Activity },
   { id: 'system', label: 'Sistema', Icon: Cpu },
 ];
 
@@ -69,6 +70,7 @@ export default function AdminPanel({ onClose }) {
           {tab === 'usage' && <UsageTab api={api} />}
           {tab === 'logs' && <LogsTab api={api} />}
           {tab === 'sessions' && <SessionsTab api={api} />}
+          {tab === 'alerts' && <AlertsTab api={api} />}
           {tab === 'system' && <SystemTab api={api} />}
         </div>
       </div>
@@ -564,8 +566,55 @@ function SystemTab({ api }) {
 }
 
 
+// ─── Alerts Tab ───────────────────────────────────────────────────────────────
+function AlertsTab({ api }) {
+  const [alerts, setAlerts] = useState([]);
+  const load = useCallback(async () => {
+    try { const { data } = await api.get('/admin/alerts?limit=100'); setAlerts(data); } catch {}
+  }, [api]);
+  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [load]);
+
+  const SEVERITY_COLORS = { critical: 'var(--error)', warning: '#fbbf24', info: 'var(--info)' };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-bold tracking-wider uppercase" style={{ color: 'var(--text-secondary)' }}>Alertas do Sistema ({alerts.length})</h3>
+        <button data-testid="reload-alerts" onClick={load} className="p-1.5" style={{ background: 'var(--bg-surface)' }}>
+          <RefreshCw className="w-3.5 h-3.5" style={{ color: 'var(--text-secondary)' }} />
+        </button>
+      </div>
+      <p className="text-[11px] mb-3" style={{ color: 'var(--text-tertiary)' }}>
+        System Watchdog monitora MongoDB, Ollama, disco e RAM a cada 60 segundos.
+      </p>
+      <div className="space-y-1">
+        {alerts.length === 0 && <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Nenhum alerta — tudo saudável ✓</p>}
+        {alerts.map((a, i) => (
+          <div key={i} className="p-2 flex items-start gap-3 text-xs" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+            <span className="w-20 flex-shrink-0 font-bold uppercase text-[10px]" style={{ color: SEVERITY_COLORS[a.severity] || 'var(--text-tertiary)' }}>{a.severity}</span>
+            <span className="w-16 flex-shrink-0 font-bold" style={{ color: 'var(--accent)' }}>{a.kind}</span>
+            <span className="flex-1" style={{ color: 'var(--text-secondary)' }}>{a.message}</span>
+            <span className="w-32 flex-shrink-0 text-right" style={{ color: 'var(--text-tertiary)' }}>
+              {new Date(a.created_at).toLocaleString('pt-BR')}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Integrations Tab (admin configura OAuth apps) ────────────────────────────
 function IntegrationsTab({ api }) {
+  return (
+    <div className="space-y-4">
+      <GoogleIntegrationCard api={api} />
+      <MetaIntegrationCard api={api} />
+    </div>
+  );
+}
+
+function GoogleIntegrationCard({ api }) {
   const [cfg, setCfg] = useState(null);
   const [form, setForm] = useState({ client_id: '', client_secret: '', enabled: true });
   const [saving, setSaving] = useState(false);
@@ -658,9 +707,101 @@ function IntegrationsTab({ api }) {
       </div>
 
       <div className="p-4 opacity-50" style={{ background: 'var(--bg-surface)', border: '1px dashed var(--border-subtle)' }}>
-        <p className="text-xs font-bold mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>Meta (Facebook/Instagram)</p>
-        <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Próxima fase — em breve</p>
+        <p className="text-xs font-bold mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>TikTok</p>
+        <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Próxima fase — requer aprovação TikTok for Developers</p>
       </div>
+    </div>
+  );
+}
+
+// ─── Meta Card ────────────────────────────────────────────────────────────────
+function MetaIntegrationCard({ api }) {
+  const [cfg, setCfg] = useState(null);
+  const [form, setForm] = useState({ app_id: '', app_secret: '', enabled: true });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await api.get('/admin/integrations/meta');
+      setCfg(data);
+      setForm(f => ({ ...f, app_id: data.app_id || '', enabled: data.enabled }));
+    } catch {}
+  }, [api]);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.put('/admin/integrations/meta', form);
+      toast.success('Meta App salvo');
+      setForm(f => ({ ...f, app_secret: '' }));
+      load();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Erro'); }
+    setSaving(false);
+  };
+
+  const remove = async () => {
+    if (!window.confirm('Remover configuração Meta?')) return;
+    await api.delete('/admin/integrations/meta');
+    toast.success('Removido'); load();
+  };
+
+  const copyRedirect = () => {
+    const uri = `${window.location.origin}/api/oauth/meta/callback`;
+    navigator.clipboard.writeText(uri);
+    toast.success('Redirect URI copiado');
+  };
+
+  if (!cfg) return null;
+
+  return (
+    <div className="p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <span className="w-8 h-8 flex items-center justify-center text-sm font-bold" style={{ background: 'rgba(24,119,242,0.15)', color: '#1877f2' }}>f</span>
+          <div>
+            <h3 className="text-sm font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Meta Business App</h3>
+            <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Instagram · Facebook Pages · WhatsApp · DMs</p>
+          </div>
+        </div>
+        {cfg.configured ? (
+          <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>Configurado</span>
+        ) : (
+          <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--error)' }}>Pendente</span>
+        )}
+      </div>
+
+      <div className="mb-4 p-3" style={{ background: 'var(--bg-base)' }}>
+        <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--text-tertiary)' }}>Redirect URI para developers.facebook.com</p>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 text-[11px] truncate" style={{ color: 'var(--accent)' }}>{window.location.origin}/api/oauth/meta/callback</code>
+          <button data-testid="copy-meta-redirect" onClick={copyRedirect} className="p-1.5" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}><Copy className="w-3.5 h-3.5" /></button>
+        </div>
+      </div>
+
+      <Input label="App ID" value={form.app_id} onChange={v => setForm({ ...form, app_id: v })} testid="meta-app-id" />
+      <Input label={cfg.app_secret_set ? 'App Secret (deixe em branco para não alterar)' : 'App Secret'} type="password" value={form.app_secret} onChange={v => setForm({ ...form, app_secret: v })} testid="meta-app-secret" />
+      <label className="flex items-center gap-2 text-xs cursor-pointer mb-4">
+        <input type="checkbox" checked={form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} data-testid="meta-enabled-toggle" />
+        <span style={{ color: 'var(--text-secondary)' }}>Habilitar integração Meta</span>
+      </label>
+
+      <div className="flex gap-2">
+        <button data-testid="save-meta-config-btn" onClick={save}
+          disabled={saving || !form.app_id || (!cfg.app_secret_set && !form.app_secret)}
+          className="flex-1 py-2 text-xs font-bold disabled:opacity-50"
+          style={{ background: '#1877f2', color: '#ffffff' }}>{saving ? 'Salvando...' : 'Salvar'}</button>
+        {cfg.configured && (
+          <button data-testid="delete-meta-config-btn" onClick={remove} className="px-4 py-2 text-xs font-bold" style={{ background: 'var(--bg-elevated)', color: 'var(--error)', border: '1px solid rgba(239,68,68,0.3)' }}>Remover</button>
+        )}
+      </div>
+
+      <details className="mt-4">
+        <summary className="text-[11px] cursor-pointer" style={{ color: 'var(--text-tertiary)' }}>Ver escopos ({cfg.scopes?.length || 0})</summary>
+        <ul className="mt-2 text-[11px] space-y-0.5" style={{ color: 'var(--text-tertiary)' }}>
+          {cfg.scopes?.map(s => <li key={s}>• {s}</li>)}
+        </ul>
+      </details>
     </div>
   );
 }

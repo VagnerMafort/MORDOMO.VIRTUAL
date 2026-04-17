@@ -66,13 +66,46 @@ async def _publish_placeholder(network_name: str) -> Dict[str, Any]:
             "message": f"Publisher para '{network_name}' ainda não implementado — roadmap Fase 2/3."}
 
 
+async def _publish_instagram(user_id: str, title: str, description: str,
+                              media_bytes: bytes, mime: str, privacy: str = "private",
+                              tags: List[str] = None) -> Dict[str, Any]:
+    """Instagram requer image_url público. Usuário deve passar URL externa via chat/form.
+    Para upload direto, precisaríamos hospedar a mídia primeiro (S3/Drive). MVP: usar apenas URL."""
+    return {"network": "instagram", "status": "error",
+            "message": "Instagram requer URL pública de imagem/vídeo. Use a skill direta [SKILL:instagram] com image_url ou publique via /api/meta/instagram/publish."}
+
+
+async def _publish_facebook(user_id: str, title: str, description: str,
+                             media_bytes: bytes, mime: str, privacy: str = "private",
+                             tags: List[str] = None) -> Dict[str, Any]:
+    try:
+        import meta_oauth
+        acc = await meta_oauth.get_meta_account(user_id)
+        if not acc or not acc.get("pages"):
+            return {"network": "facebook", "status": "error", "message": "Meta não conectado ou sem páginas."}
+        # Posta na primeira página disponível como default (MVP)
+        page = acc["pages"][0]
+        token = page.get("page_token") or acc.get("access_token", "")
+        async with httpx.AsyncClient(timeout=30) as c:
+            msg = f"{title}\n\n{description}".strip()
+            r = await c.post(f"https://graph.facebook.com/v21.0/{page['id']}/feed",
+                              params={"message": msg, "access_token": token})
+            d = r.json()
+            if r.status_code != 200:
+                return {"network": "facebook", "status": "error", "message": d.get("error", {}).get("message", str(d))[:200]}
+            return {"network": "facebook", "status": "ok", "id": d.get("id", ""),
+                     "url": f"https://facebook.com/{d.get('id','')}"}
+    except Exception as e:
+        return {"network": "facebook", "status": "error", "message": str(e)[:200]}
+
+
 PUBLISHERS = {
     "youtube": _publish_youtube,
-    # Placeholders para extensibilidade:
-    "tiktok": None,      # TODO: OAuth TikTok Content Posting API
-    "instagram": None,   # TODO: Meta Graph API (após FASE 2)
-    "facebook": None,    # TODO: Meta Graph API
-    "whatsapp": None,    # TODO: WhatsApp Cloud API
+    "facebook": _publish_facebook,
+    "instagram": _publish_instagram,
+    # Placeholders:
+    "tiktok": None,
+    "whatsapp": None,
 }
 
 
@@ -107,15 +140,23 @@ async def publish(request: Request, title: str = Form(...), description: str = F
 async def list_networks(request: Request):
     """Retorna redes disponíveis e seus status de conexão para o usuário atual."""
     user = await get_current_user(request)
-    # YouTube depende de Google conectado
     google = await db.google_accounts.find_one({"user_id": user["_id"]})
+    meta = await db.meta_accounts.find_one({"user_id": user["_id"]})
+    ig_connected = False
+    if meta:
+        for p in meta.get("pages", []):
+            if p.get("ig_account"):
+                ig_connected = True
+                break
     return {
         "networks": [
             {"key": "youtube", "name": "YouTube", "connected": bool(google), "available": True},
-            {"key": "tiktok", "name": "TikTok", "connected": False, "available": False, "message": "Em breve (Fase 3 oficial)"},
-            {"key": "instagram", "name": "Instagram", "connected": False, "available": False, "message": "Em breve (Fase 2 - Meta)"},
-            {"key": "facebook", "name": "Facebook", "connected": False, "available": False, "message": "Em breve (Fase 2 - Meta)"},
-            {"key": "whatsapp", "name": "WhatsApp Business", "connected": False, "available": False, "message": "Em breve (Fase 2 - Meta)"},
+            {"key": "facebook", "name": "Facebook", "connected": bool(meta and meta.get("pages")), "available": True},
+            {"key": "instagram", "name": "Instagram", "connected": ig_connected, "available": True,
+             "message": "Requer URL pública — use skill direta"},
+            {"key": "tiktok", "name": "TikTok", "connected": False, "available": False, "message": "Em breve"},
+            {"key": "whatsapp", "name": "WhatsApp Business", "connected": bool(meta), "available": False,
+             "message": "Use skill direta [SKILL:whatsapp]"},
         ]
     }
 

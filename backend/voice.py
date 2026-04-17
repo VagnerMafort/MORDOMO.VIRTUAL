@@ -23,11 +23,19 @@ PIPER_VOICE = os.environ.get("PIPER_VOICE", "pt_BR-faber-medium")
 MODELS_DIR = Path(os.environ.get("VOICE_MODELS_DIR", "/app/voice_models"))
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Lazy singletons
+# Lazy singletons — cache multi-voice
 _whisper_model = None
-_piper_voice = None
+_piper_voices = {}  # voice_name -> PiperVoice
 _whisper_lock = asyncio.Lock()
 _piper_lock = asyncio.Lock()
+
+# Catálogo de vozes PT-BR disponíveis (baixadas sob demanda do HuggingFace rhasspy/piper-voices)
+AVAILABLE_VOICES = [
+    {"id": "pt_BR-faber-medium", "name": "Faber (masc.)", "gender": "M", "quality": "medium", "default": True},
+    {"id": "pt_BR-edresson-low", "name": "Edresson (masc.)", "gender": "M", "quality": "low"},
+    {"id": "pt_BR-cadu-medium", "name": "Cadu (masc.)", "gender": "M", "quality": "medium"},
+    {"id": "pt_BR-jeff-medium", "name": "Jeff (masc.)", "gender": "M", "quality": "medium"},
+]
 
 
 async def get_whisper():
@@ -53,43 +61,42 @@ async def get_whisper():
     return _whisper_model
 
 
-async def get_piper():
-    """Lazy load piper voice (singleton)."""
-    global _piper_voice
-    if _piper_voice is None:
-        async with _piper_lock:
-            if _piper_voice is None:
-                logger.info(f"Carregando Piper {PIPER_VOICE}...")
-                piper_dir = MODELS_DIR / "piper"
-                piper_dir.mkdir(parents=True, exist_ok=True)
-                model_path = piper_dir / f"{PIPER_VOICE}.onnx"
-                config_path = piper_dir / f"{PIPER_VOICE}.onnx.json"
-
-                # Download if missing
-                if not model_path.exists() or not config_path.exists():
-                    logger.info(f"Baixando voz Piper {PIPER_VOICE}...")
-                    import urllib.request
-                    # Huggingface direct URLs (rhasspy/piper-voices)
-                    base_url = "https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR"
-                    speaker, quality = PIPER_VOICE.replace("pt_BR-", "").split("-")
-                    onnx_url = f"{base_url}/{speaker}/{quality}/{PIPER_VOICE}.onnx"
-                    json_url = f"{base_url}/{speaker}/{quality}/{PIPER_VOICE}.onnx.json"
-                    try:
-                        loop = asyncio.get_event_loop()
-                        await loop.run_in_executor(None, urllib.request.urlretrieve, onnx_url, str(model_path))
-                        await loop.run_in_executor(None, urllib.request.urlretrieve, json_url, str(config_path))
-                    except Exception as e:
-                        logger.error(f"Falha ao baixar Piper: {e}")
-                        raise HTTPException(status_code=503, detail=f"Download da voz Piper falhou: {e}")
-
-                from piper.voice import PiperVoice
+async def get_piper(voice_name: str = None):
+    """Lazy load piper voice (por nome). Retorna PiperVoice singleton cacheado."""
+    vname = voice_name or PIPER_VOICE
+    if vname in _piper_voices:
+        return _piper_voices[vname]
+    async with _piper_lock:
+        if vname in _piper_voices:
+            return _piper_voices[vname]
+        logger.info(f"Carregando Piper {vname}...")
+        piper_dir = MODELS_DIR / "piper"
+        piper_dir.mkdir(parents=True, exist_ok=True)
+        model_path = piper_dir / f"{vname}.onnx"
+        config_path = piper_dir / f"{vname}.onnx.json"
+        if not model_path.exists() or not config_path.exists():
+            logger.info(f"Baixando voz Piper {vname}...")
+            import urllib.request
+            base_url = "https://huggingface.co/rhasspy/piper-voices/resolve/main/pt/pt_BR"
+            try:
+                speaker, quality = vname.replace("pt_BR-", "").split("-")
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Voz '{vname}' não reconhecida")
+            onnx_url = f"{base_url}/{speaker}/{quality}/{vname}.onnx"
+            json_url = f"{base_url}/{speaker}/{quality}/{vname}.onnx.json"
+            try:
                 loop = asyncio.get_event_loop()
-                _piper_voice = await loop.run_in_executor(
-                    None,
-                    lambda: PiperVoice.load(str(model_path), config_path=str(config_path)),
-                )
-                logger.info("Piper carregado")
-    return _piper_voice
+                await loop.run_in_executor(None, urllib.request.urlretrieve, onnx_url, str(model_path))
+                await loop.run_in_executor(None, urllib.request.urlretrieve, json_url, str(config_path))
+            except Exception as e:
+                logger.error(f"Falha ao baixar Piper {vname}: {e}")
+                raise HTTPException(status_code=503, detail=f"Download falhou: {e}")
+        from piper.voice import PiperVoice
+        loop = asyncio.get_event_loop()
+        v = await loop.run_in_executor(None, lambda: PiperVoice.load(str(model_path), config_path=str(config_path)))
+        _piper_voices[vname] = v
+        logger.info(f"Piper {vname} carregado")
+        return v
 
 
 @router.get("/status")
@@ -97,12 +104,19 @@ async def voice_status():
     """Status of voice models (loaded/not loaded)."""
     return {
         "whisper_loaded": _whisper_model is not None,
-        "piper_loaded": _piper_voice is not None,
+        "piper_loaded": len(_piper_voices) > 0,
+        "piper_loaded_voices": list(_piper_voices.keys()),
         "whisper_model": WHISPER_MODEL,
         "whisper_compute": WHISPER_COMPUTE,
-        "piper_voice": PIPER_VOICE,
+        "piper_voice_default": PIPER_VOICE,
         "models_dir": str(MODELS_DIR),
     }
+
+
+@router.get("/voices")
+async def list_voices():
+    """Lista vozes Piper disponíveis para seleção."""
+    return {"voices": AVAILABLE_VOICES, "default": PIPER_VOICE}
 
 
 @router.post("/transcribe")
@@ -162,27 +176,28 @@ async def transcribe_audio(file: UploadFile = File(...), language: str = Query("
 
 
 @router.post("/speak")
-async def speak_text(text: str = Query(..., max_length=5000)):
+async def speak_text(text: str = Query(..., max_length=5000), voice: str = Query(None), speed: float = Query(1.0, ge=0.5, le=2.0)):
     """
     Synthesize text to WAV audio using Piper local.
-    Returns audio/wav.
+    - voice: id da voz (opcional, default do env)
+    - speed: 0.5 (lenta) a 2.0 (rápida), default 1.0
     """
     text = (text or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Texto vazio")
 
-    voice = await get_piper()
+    piper_voice = await get_piper(voice)
     loop = asyncio.get_event_loop()
 
     def run_tts():
         buf = io.BytesIO()
         wav = wave.open(buf, "wb")
         try:
-            # length_scale < 1.0 = mais rapido, > 1.0 = mais lento
-            # noise_scale baixo = mais monotonico. Default 0.667 fica natural.
             from piper.config import SynthesisConfig
-            cfg = SynthesisConfig(length_scale=0.95, noise_scale=0.667, noise_w_scale=0.8)
-            voice.synthesize_wav(text, wav, syn_config=cfg)
+            # length_scale inverso à velocidade: speed=2 → length_scale=0.5
+            length_scale = max(0.5, min(2.0, 1.0 / speed))
+            cfg = SynthesisConfig(length_scale=length_scale, noise_scale=0.667, noise_w_scale=0.8)
+            piper_voice.synthesize_wav(text, wav, syn_config=cfg)
         finally:
             wav.close()
         buf.seek(0)
