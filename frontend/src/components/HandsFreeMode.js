@@ -323,14 +323,91 @@ export default function HandsFreeMode({ onClose, agentName }) {
       .replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1')
       .replace(/#{1,3}\s/g, '').replace(/\[SKILL:[^\]]+\][^`]*/g, '')
       .replace(/https?:\/\/\S+/g, '').trim();
-    if (!clean) { setState(STATES.IDLE); if (autoRestart.current) setTimeout(startListening, 500); return; }
-    const utt = new SpeechSynthesisUtterance(clean.slice(0, 800));
-    utt.lang = 'pt-BR';
-    utt.rate = 1.05;
-    utt.onend = () => { setState(STATES.IDLE); if (autoRestart.current) setTimeout(startListening, 300); };
-    utt.onerror = () => { setState(STATES.IDLE); if (autoRestart.current) setTimeout(startListening, 300); };
-    synthRef.current.speak(utt);
-  }, [startListening]);
+    if (!clean) {
+      setState(STATES.IDLE);
+      if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 500);
+      return;
+    }
+
+    const synth = window.speechSynthesis;
+    if (!synth) {
+      console.error('[HandsFree] speechSynthesis nao suportado');
+      setState(STATES.IDLE);
+      if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 500);
+      return;
+    }
+
+    // Garantir que nada esta em fila
+    synth.cancel();
+
+    const doSpeak = () => {
+      const voices = synth.getVoices();
+      const ptVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('pt'))
+        || voices.find(v => v.default)
+        || voices[0];
+
+      // Chrome tem limite ~200 chars por utterance — quebra em pedacos
+      const textToSpeak = clean.slice(0, 800);
+      const chunks = [];
+      const sentences = textToSpeak.match(/[^.!?]+[.!?]*\s*/g) || [textToSpeak];
+      let current = '';
+      for (const s of sentences) {
+        if ((current + s).length > 200) {
+          if (current) chunks.push(current.trim());
+          current = s;
+        } else {
+          current += s;
+        }
+      }
+      if (current.trim()) chunks.push(current.trim());
+      if (chunks.length === 0) chunks.push(textToSpeak);
+
+      let idx = 0;
+      const speakNext = () => {
+        if (idx >= chunks.length) {
+          setState(STATES.IDLE);
+          if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 300);
+          return;
+        }
+        const utt = new SpeechSynthesisUtterance(chunks[idx]);
+        if (ptVoice) utt.voice = ptVoice;
+        utt.lang = (ptVoice && ptVoice.lang) || 'pt-BR';
+        utt.rate = 1.05;
+        utt.pitch = 1;
+        utt.volume = 1;
+        utt.onend = () => { idx++; speakNext(); };
+        utt.onerror = (e) => {
+          console.warn('[HandsFree] TTS erro:', e.error || e);
+          idx++;
+          speakNext();
+        };
+        try {
+          synth.speak(utt);
+          // Workaround do bug do Chrome que pausa TTS apos ~15s
+          setTimeout(() => { if (synth.speaking) { synth.pause(); synth.resume(); } }, 10000);
+        } catch (err) {
+          console.error('[HandsFree] Falha ao falar:', err);
+          idx++;
+          speakNext();
+        }
+      };
+      // Pequeno delay pro Chrome liberar o audio do microfone
+      setTimeout(speakNext, 250);
+    };
+
+    // Garante que as vozes foram carregadas
+    if (synth.getVoices().length === 0) {
+      const onVoices = () => {
+        synth.removeEventListener('voiceschanged', onVoices);
+        doSpeak();
+      };
+      synth.addEventListener('voiceschanged', onVoices);
+      // Fallback: se nao disparar em 1s, tenta mesmo assim
+      setTimeout(() => { synth.removeEventListener('voiceschanged', onVoices); doSpeak(); }, 1000);
+    } else {
+      doSpeak();
+    }
+  }, []);
 
   const toggleMode = () => {
     if (state === STATES.IDLE) { autoRestart.current = true; startListening(); }
