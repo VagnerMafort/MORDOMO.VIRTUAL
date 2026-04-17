@@ -105,28 +105,36 @@ async def _run_workflow(wf: dict, user_id: str, initial_vars: Dict[str, Any] = N
         args = _interp(step.get("args", {}) or {}, ctx)
         label = step.get("label") or skill
         t0 = datetime.now(timezone.utc)
+        step_errored = False
         try:
-            # execute_skill expects (skill_id, args, user_id)
             output = await execute_skill(skill, args, user_id)
         except Exception as e:
             output = f"Erro: {e}"
-            if step.get("on_error", "stop") == "stop":
-                step_logs.append({
-                    "step_id": step_id, "label": label, "skill": skill,
-                    "status": "error", "output": output,
-                    "duration_ms": int((datetime.now(timezone.utc) - t0).total_seconds() * 1000),
-                })
-                final_status = "error"
-                break
+            step_errored = True
+        # Também considera erro quando a skill retornou string começando com "Erro"
+        if not step_errored and isinstance(output, str) and output.startswith("Erro"):
+            step_errored = True
         var = step.get("output_var")
         if var:
             ctx[var] = output
-        step_logs.append({
-            "step_id": step_id, "label": label, "skill": skill,
-            "status": "ok" if not str(output).startswith("Erro") else "warning",
-            "output": (str(output) or "")[:2000],
-            "duration_ms": int((datetime.now(timezone.utc) - t0).total_seconds() * 1000),
-        })
+        duration_ms = int((datetime.now(timezone.utc) - t0).total_seconds() * 1000)
+        if step_errored:
+            step_logs.append({
+                "step_id": step_id, "label": label, "skill": skill,
+                "status": "error", "output": (str(output) or "")[:2000],
+                "duration_ms": duration_ms,
+            })
+            if step.get("on_error", "stop") == "stop":
+                final_status = "error"
+                break
+            else:
+                final_status = "warning"  # continuou, mas teve erro
+        else:
+            step_logs.append({
+                "step_id": step_id, "label": label, "skill": skill,
+                "status": "ok", "output": (str(output) or "")[:2000],
+                "duration_ms": duration_ms,
+            })
     finished = datetime.now(timezone.utc)
     exec_doc = {
         "id": str(uuid.uuid4()),

@@ -103,10 +103,12 @@ Status: Feb 2026 · Deploy em produção na VPS `mordomo.virtual.grupomafort.com
 
 ---
 
-### 🚀 FASE 3 — TikTok + Social Unified 🔹 P1 (1 sessão)
-- 🔴 TikTok API
-- 🔴 Social Media Publisher unificado (posta em múltiplas redes com 1 comando)
-- 🔴 Social Media Manager dashboard
+### ✅ FASE 3 — TikTok + Social Unified (PARCIAL — Feb 18, 2026)
+- 🟡 TikTok API — **pulado** por escolha do usuário (requer aprovação TikTok for Developers)
+- ✅ Social Media Publisher unificado (`/api/social/publish` + skill `[SKILL:social_publish]`)
+- ✅ YouTube conector completo via Google OAuth
+- ✅ Frontend: modal "Publicar em Redes" (grid 5 redes, upload, campos, resultados por rede)
+- 🔴 Social Media Manager dashboard (deferido)
 
 ---
 
@@ -125,12 +127,14 @@ Status: Feb 2026 · Deploy em produção na VPS `mordomo.virtual.grupomafort.com
 
 ---
 
-### 🚀 FASE 5 — Workflow & Automação Avançada 🔹 P1 (1 sessão)
-- 🔴 Workflow Engine (encadear tarefas multi-passo)
-- 🔴 Intent Router avançado (comando natural executa módulo)
-- 🔴 Chat Command Executor ("Crie uma mentoria" → executa)
-- 🔴 System Watchdog (reiniciar containers com falha)
-- 🔴 Web Automation Engine (Playwright na VPS: preencher forms, baixar arquivos)
+### ✅ FASE 5 — Workflow & Automação Avançada (Feb 18, 2026)
+- ✅ Workflow Engine (CRUD, execução, variáveis via `{{var}}`, on_error=stop/continue, histórico)
+- ✅ Intent Router/Chat Command Executor (21 skills registradas, LLM aciona automaticamente)
+- ✅ Web Automation Engine (Playwright + Chromium — goto/fill/click/extract/screenshot/scroll)
+- ✅ Dockerfile backend com Playwright + deps do Chromium
+- ✅ Frontend: painel "Fluxos de Trabalho" com editor visual + histórico
+- ✅ Testing agent: 29/29 backend PASS + frontend 100%
+- 🔴 System Watchdog (reiniciar containers com falha) — deferido
 
 ---
 

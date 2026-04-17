@@ -72,6 +72,21 @@ Portuguese (pt-BR) — SEMPRE responder em português.
 - **Frontend**: aba Integrações no AdminPanel + IntegrationsPanel para usuário
 - Callback handler detecta `?google=connected` e mostra toast
 
+### FASE 5 — Workflow Engine + Playwright (Feb 18, 2026) ✅
+- **Workflow Engine**: CRUD + execução + histórico + variáveis entre passos
+- **21 skills** no total (14 base + 5 Google + workflow + social_publish + browser_automation)
+- **Playwright Chromium**: skill `browser_automation` com 9 actions (goto, fill, click, press, wait, wait_for, extract, screenshot, scroll)
+- **Chat Command Executor**: LLM roteia qualquer pedido natural pras skills via SYSTEM_PROMPT
+- Frontend: painel "Fluxos de Trabalho" com editor visual + aba Histórico
+- Dockerfile com Chromium + deps instalados automaticamente
+
+### FASE 3 — Social Unified PARCIAL (Feb 18, 2026) ✅🟡
+- Endpoint `/api/social/publish` distribui conteúdo pra múltiplas redes
+- Skill `[SKILL:social_publish]` no chat
+- YouTube funcional hoje (via Google OAuth da FASE 1)
+- Frontend: modal "Publicar em Redes" com status por rede
+- 🟡 TikTok/Instagram/Facebook/WhatsApp como placeholders — depende de FASE 2 (Meta) e TikTok for Developers
+
 ## DB Schema
 - `users` (+allowed_modules, blocked, quota, login_count, last_login)
 - `settings`, `conversations`, `messages`
