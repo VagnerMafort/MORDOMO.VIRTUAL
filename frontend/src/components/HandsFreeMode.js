@@ -156,6 +156,10 @@ export default function HandsFreeMode({ onClose, agentName }) {
   const analyserRef = useRef(null);
   const volumeLoopRef = useRef(null);
   const streamRef = useRef(null);
+  // Refs para evitar stale closures no onend do SpeechRecognition
+  const convIdRef = useRef(null);
+  const sendMessageRef = useRef(null);
+  const startListeningRef = useRef(null);
 
   // Start volume monitoring
   const startVolumeMonitor = useCallback(async () => {
@@ -193,6 +197,7 @@ export default function HandsFreeMode({ onClose, agentName }) {
       try {
         const { data } = await api.post('/conversations', { title: `[Voz] ${agentName || 'Mordomo Virtual'}` });
         setConvId(data.id);
+        convIdRef.current = data.id;
       } catch (e) { console.error(e); }
     })();
     return () => {
@@ -205,7 +210,10 @@ export default function HandsFreeMode({ onClose, agentName }) {
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return;
+    if (!SR) {
+      console.error('[HandsFree] Navegador nao suporta Web Speech API');
+      return;
+    }
     const rec = new SR();
     rec.continuous = false;
     rec.interimResults = true;
@@ -220,13 +228,24 @@ export default function HandsFreeMode({ onClose, agentName }) {
     };
     rec.onend = () => {
       setTranscript(prev => {
-        if (prev.trim() && autoRestart.current) sendMessage(prev.trim());
-        else if (autoRestart.current) { try { rec.start(); } catch {} }
+        const text = prev.trim();
+        if (text && autoRestart.current && convIdRef.current) {
+          // Usa ref pra pegar a versao mais recente (evita stale closure)
+          sendMessageRef.current?.(text);
+        } else if (autoRestart.current) {
+          try { rec.start(); } catch {}
+        }
         return prev;
       });
     };
     rec.onerror = (e) => {
-      if (e.error === 'no-speech' && autoRestart.current) { try { rec.start(); } catch {} }
+      console.warn('[HandsFree] Erro reconhecimento:', e.error);
+      if (e.error === 'no-speech' && autoRestart.current) {
+        try { rec.start(); } catch {}
+      } else if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        alert('Permissao de microfone negada. Autorize o microfone nas configuracoes do navegador e recarregue a pagina.');
+        autoRestart.current = false;
+      }
     };
     recognitionRef.current = rec;
   }, []);
@@ -240,17 +259,25 @@ export default function HandsFreeMode({ onClose, agentName }) {
     try { recognitionRef.current?.start(); } catch {}
   }, [startVolumeMonitor]);
 
+  // Sincroniza refs para evitar stale closures no onend/onerror do SpeechRecognition
+  useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
+
   const sendMessage = useCallback(async (text) => {
-    if (!text || !convId) return;
+    const cid = convIdRef.current || convId;
+    if (!text || !cid) {
+      console.warn('[HandsFree] sendMessage: sem texto ou conversa');
+      return;
+    }
     setState(STATES.PROCESSING);
     setHistory(prev => [...prev, { role: 'user', text }]);
     setTranscript('');
     try {
-      const res = await fetch(`${BACKEND_URL}/api/conversations/${convId}/messages`, {
+      const res = await fetch(`${BACKEND_URL}/api/conversations/${cid}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
         body: JSON.stringify({ content: text }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullContent = '';
@@ -270,11 +297,25 @@ export default function HandsFreeMode({ onClose, agentName }) {
           } catch {}
         }
       }
+      // Fallback: se o backend terminou mas nao enviou evento 'done', fala mesmo assim
+      if (fullContent && state !== STATES.SPEAKING) {
+        setHistory(prev => {
+          if (prev[prev.length - 1]?.role !== 'assistant') {
+            return [...prev, { role: 'assistant', text: fullContent }];
+          }
+          return prev;
+        });
+        speakResponse(fullContent);
+      }
     } catch (e) {
-      console.error(e);
+      console.error('[HandsFree] Erro ao enviar:', e);
       setState(STATES.IDLE);
+      if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 800);
     }
-  }, [convId, getToken]);
+  }, [convId, getToken, state]);
+
+  // Sincroniza ref de sendMessage
+  useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
 
   const speakResponse = useCallback((text) => {
     setState(STATES.SPEAKING);
