@@ -1217,6 +1217,11 @@ admin_mod.init(db, get_current_user)
 app.include_router(admin_mod.router)
 app.include_router(admin_mod.public_router)
 
+# Google OAuth (FASE 1 — Gmail/Drive/Sheets/Calendar/YouTube)
+import google_oauth
+google_oauth.init(db, get_current_user, os.environ["JWT_SECRET"])
+app.include_router(google_oauth.router)
+
 # Smart LLM
 import smart_llm
 smart_llm.init(db, OLLAMA_URL, "qwen2.5:7b", OLLAMA_MODEL)
@@ -1355,6 +1360,9 @@ async def startup():
     await db.usage_metering.create_index("date")
     await db.password_resets.create_index("token", unique=True)
     await db.password_resets.create_index("expires_at")
+    # Google OAuth (FASE 1)
+    await db.oauth_config.create_index("provider", unique=True)
+    await db.google_accounts.create_index("user_id", unique=True)
     # Start rules evaluation engine
     asyncio.create_task(rules_engine.rules_evaluation_loop())
     # Start background task worker

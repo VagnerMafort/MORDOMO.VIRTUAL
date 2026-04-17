@@ -1,8 +1,8 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Settings, Cpu, Trash2, MessageSquare, LogOut, Zap, Pencil, Check, X, Bot, Building2, GraduationCap, Activity, Shield } from 'lucide-react';
+import { Plus, Settings, Cpu, Trash2, MessageSquare, LogOut, Zap, Pencil, Check, X, Bot, Building2, GraduationCap, Activity, Shield, Plug } from 'lucide-react';
 import { useState } from 'react';
 
-export default function Sidebar({ conversations, activeConvId, onSelect, onCreate, onDelete, onRename, onOpenSettings, onOpenSkills, onOpenAgents, onOpenAgency, onOpenMentorship, onOpenMonitor, onOpenAdmin, agentName, allowedModules = [] }) {
+export default function Sidebar({ conversations, activeConvId, onSelect, onCreate, onDelete, onRename, onOpenSettings, onOpenSkills, onOpenAgents, onOpenAgency, onOpenMentorship, onOpenMonitor, onOpenAdmin, onOpenIntegrations, agentName, allowedModules = [] }) {
   const { user, logout } = useAuth();
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -181,6 +181,16 @@ export default function Sidebar({ conversations, activeConvId, onSelect, onCreat
             <Activity className="w-4 h-4" /> Monitoramento
           </button>
         )}
+        <button
+          data-testid="open-integrations-btn"
+          onClick={onOpenIntegrations}
+          className="w-full py-2 px-3 text-xs font-medium flex items-center gap-2 transition-colors"
+          style={{ color: 'var(--text-secondary)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+        >
+          <Plug className="w-4 h-4" /> Minhas Integrações
+        </button>
         {user?.role === 'admin' && onOpenAdmin && (
           <button
             data-testid="open-admin-btn"

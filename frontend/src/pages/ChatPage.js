@@ -10,9 +10,11 @@ import AgencyDashboard from '@/components/AgencyDashboard';
 import MentorshipPanel from '@/components/MentorshipPanel';
 import MonitorPanel from '@/components/MonitorPanel';
 import AdminPanel from '@/components/AdminPanel';
+import IntegrationsPanel from '@/components/IntegrationsPanel';
 import HandsFreeMode from '@/components/HandsFreeMode';
 import WakeWordListener from '@/components/WakeWordListener';
 import { Menu, Headphones } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function ChatPage() {
   const { api, user } = useAuth();
@@ -28,6 +30,7 @@ export default function ChatPage() {
   const [showMentorship, setShowMentorship] = useState(false);
   const [showMonitor, setShowMonitor] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showIntegrations, setShowIntegrations] = useState(false);
   const [agentName, setAgentName] = useState('Mordomo Virtual');
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
   const [hasAgencyAccess, setHasAgencyAccess] = useState(false);
@@ -51,6 +54,19 @@ export default function ChatPage() {
       } catch {}
     })();
   }, [api]);
+
+  // Detecta retorno do OAuth Google callback via query string
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('google') === 'connected') {
+      toast.success('Conta Google conectada com sucesso!');
+      setShowIntegrations(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('google') === 'error') {
+      toast.error(`Erro ao conectar Google: ${params.get('reason') || 'desconhecido'}`);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -138,6 +154,7 @@ export default function ChatPage() {
           onOpenMentorship={() => { setShowMentorship(true); setSidebarOpen(false); }}
           onOpenMonitor={() => { setShowMonitor(true); setSidebarOpen(false); }}
           onOpenAdmin={user?.role === 'admin' ? () => { setShowAdmin(true); setSidebarOpen(false); } : null}
+          onOpenIntegrations={() => { setShowIntegrations(true); setSidebarOpen(false); }}
         />
       </div>
 
@@ -189,6 +206,7 @@ export default function ChatPage() {
       {showMentorship && <MentorshipPanel onClose={() => setShowMentorship(false)} />}
       {showMonitor && <MonitorPanel onClose={() => setShowMonitor(false)} />}
       {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+      {showIntegrations && <IntegrationsPanel onClose={() => setShowIntegrations(false)} />}
       {/* Hands-free Mode */}
       {showHandsFree && <HandsFreeMode onClose={() => { setShowHandsFree(false); setWakeWordEnabled(prev => prev); fetchConversations(); }} agentName={agentName} />}
       {/* Wake Word Listener (runs in background) */}

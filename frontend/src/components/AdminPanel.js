@@ -2,13 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   X, LayoutDashboard, Users, Shield, Activity, FileText, Monitor, Cpu,
-  UserPlus, Lock, Unlock, Trash2, KeyRound, RefreshCw, Gauge, Circle, Copy
+  UserPlus, Lock, Unlock, Trash2, KeyRound, RefreshCw, Gauge, Circle, Copy, Plug
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
   { id: 'users', label: 'Usuários', Icon: Users },
   { id: 'modules', label: 'Módulos', Icon: Shield },
+  { id: 'integrations', label: 'Integrações', Icon: Plug },
   { id: 'usage', label: 'Uso', Icon: Gauge },
   { id: 'logs', label: 'Logs', Icon: FileText },
   { id: 'sessions', label: 'Sessões', Icon: Monitor },
@@ -63,6 +65,7 @@ export default function AdminPanel({ onClose }) {
           {tab === 'dashboard' && <DashboardTab api={api} />}
           {tab === 'users' && <UsersTab api={api} />}
           {tab === 'modules' && <ModulesTab api={api} />}
+          {tab === 'integrations' && <IntegrationsTab api={api} />}
           {tab === 'usage' && <UsageTab api={api} />}
           {tab === 'logs' && <LogsTab api={api} />}
           {tab === 'sessions' && <SessionsTab api={api} />}
@@ -555,6 +558,108 @@ function SystemTab({ api }) {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Integrations Tab (admin configura OAuth apps) ────────────────────────────
+function IntegrationsTab({ api }) {
+  const [cfg, setCfg] = useState(null);
+  const [form, setForm] = useState({ client_id: '', client_secret: '', enabled: true });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try { const { data } = await api.get('/admin/integrations/google'); setCfg(data); setForm(f => ({ ...f, client_id: data.client_id || '', enabled: data.enabled })); } catch {}
+  }, [api]);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.put('/admin/integrations/google', form);
+      toast.success('Configuração Google salva');
+      setForm(f => ({ ...f, client_secret: '' }));
+      load();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Erro ao salvar'); }
+    setSaving(false);
+  };
+
+  const remove = async () => {
+    if (!window.confirm('Remover a configuração do Google? Todos os usuários conectados perderão acesso.')) return;
+    await api.delete('/admin/integrations/google');
+    toast.success('Configuração removida');
+    load();
+  };
+
+  const copyRedirect = () => {
+    const uri = `${window.location.origin}/api/oauth/google/callback`;
+    navigator.clipboard.writeText(uri);
+    toast.success('Redirect URI copiado');
+  };
+
+  if (!cfg) return <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Carregando...</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <span className="w-8 h-8 flex items-center justify-center text-sm font-bold" style={{ background: 'rgba(234,67,53,0.15)', color: '#EA4335' }}>G</span>
+            <div>
+              <h3 className="text-sm font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>Google OAuth App</h3>
+              <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Gmail · Drive · Sheets · Calendar · YouTube</p>
+            </div>
+          </div>
+          {cfg.configured ? (
+            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>Configurado</span>
+          ) : (
+            <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--error)' }}>Pendente</span>
+          )}
+        </div>
+
+        <div className="mb-4 p-3" style={{ background: 'var(--bg-base)' }}>
+          <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--text-tertiary)' }}>Redirect URI para colar no Google Cloud Console</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-[11px] truncate" style={{ color: 'var(--accent)' }}>{window.location.origin}/api/oauth/google/callback</code>
+            <button data-testid="copy-redirect-uri" onClick={copyRedirect} className="p-1.5" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}><Copy className="w-3.5 h-3.5" /></button>
+          </div>
+        </div>
+
+        <Input label="Client ID" value={form.client_id} onChange={v => setForm({ ...form, client_id: v })} testid="google-client-id" />
+        <Input label={cfg.client_secret_set ? 'Client Secret (deixe em branco para não alterar)' : 'Client Secret'} type="password" value={form.client_secret} onChange={v => setForm({ ...form, client_secret: v })} testid="google-client-secret" />
+        <label className="flex items-center gap-2 text-xs cursor-pointer mb-4">
+          <input type="checkbox" checked={form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} data-testid="google-enabled-toggle" />
+          <span style={{ color: 'var(--text-secondary)' }}>Habilitar integração Google para usuários</span>
+        </label>
+
+        <div className="flex gap-2">
+          <button
+            data-testid="save-google-config-btn"
+            onClick={save}
+            disabled={saving || !form.client_id || (!cfg.client_secret_set && !form.client_secret)}
+            className="flex-1 py-2 text-xs font-bold disabled:opacity-50"
+            style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}
+          >{saving ? 'Salvando...' : 'Salvar'}</button>
+          {cfg.configured && (
+            <button data-testid="delete-google-config-btn" onClick={remove} className="px-4 py-2 text-xs font-bold" style={{ background: 'var(--bg-elevated)', color: 'var(--error)', border: '1px solid rgba(239,68,68,0.3)' }}>
+              Remover
+            </button>
+          )}
+        </div>
+
+        <details className="mt-4">
+          <summary className="text-[11px] cursor-pointer" style={{ color: 'var(--text-tertiary)' }}>Ver escopos autorizados ({cfg.scopes?.length || 0})</summary>
+          <ul className="mt-2 text-[11px] space-y-0.5" style={{ color: 'var(--text-tertiary)' }}>
+            {cfg.scopes?.map(s => <li key={s}>• {s.replace('https://www.googleapis.com/auth/', '')}</li>)}
+          </ul>
+        </details>
+      </div>
+
+      <div className="p-4 opacity-50" style={{ background: 'var(--bg-surface)', border: '1px dashed var(--border-subtle)' }}>
+        <p className="text-xs font-bold mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>Meta (Facebook/Instagram)</p>
+        <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Próxima fase — em breve</p>
       </div>
     </div>
   );
