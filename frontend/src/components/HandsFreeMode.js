@@ -148,6 +148,8 @@ export default function HandsFreeMode({ onClose, agentName }) {
   const [response, setResponse] = useState('');
   const [convId, setConvId] = useState(null);
   const [history, setHistory] = useState([]);
+  const [debugMsg, setDebugMsg] = useState('');
+  const [showDebug, setShowDebug] = useState(false);
   const recognitionRef = useRef(null);
   const synthRef = useRef(window.speechSynthesis);
   const autoRestart = useRef(true);
@@ -160,6 +162,17 @@ export default function HandsFreeMode({ onClose, agentName }) {
   const convIdRef = useRef(null);
   const sendMessageRef = useRef(null);
   const startListeningRef = useRef(null);
+
+  const addDebug = useCallback((msg) => {
+    console.log('[HandsFree]', msg);
+    setDebugMsg(prev => {
+      const t = new Date().toLocaleTimeString();
+      const line = `${t} · ${msg}`;
+      const lines = prev ? prev.split('\n') : [];
+      lines.push(line);
+      return lines.slice(-8).join('\n');
+    });
+  }, []);
 
   // Start volume monitoring
   const startVolumeMonitor = useCallback(async () => {
@@ -319,11 +332,13 @@ export default function HandsFreeMode({ onClose, agentName }) {
 
   const speakResponse = useCallback((text) => {
     setState(STATES.SPEAKING);
+    addDebug(`TTS start: ${text.length} chars`);
     const clean = text.replace(/```[\s\S]*?```/g, '').replace(/`[^`]+`/g, '')
       .replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1')
       .replace(/#{1,3}\s/g, '').replace(/\[SKILL:[^\]]+\][^`]*/g, '')
       .replace(/https?:\/\/\S+/g, '').trim();
     if (!clean) {
+      addDebug('TTS: texto vazio apos limpar');
       setState(STATES.IDLE);
       if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 500);
       return;
@@ -331,7 +346,7 @@ export default function HandsFreeMode({ onClose, agentName }) {
 
     const synth = window.speechSynthesis;
     if (!synth) {
-      console.error('[HandsFree] speechSynthesis nao suportado');
+      addDebug('ERRO: speechSynthesis nao suportado');
       setState(STATES.IDLE);
       if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 500);
       return;
@@ -340,11 +355,34 @@ export default function HandsFreeMode({ onClose, agentName }) {
     // Garantir que nada esta em fila
     synth.cancel();
 
+    // SAFETY NET: se travar, forca retorno a IDLE apos 45s
+    let hardTimeoutId = null;
+    let finished = false;
+    const finishOnce = (reason) => {
+      if (finished) return;
+      finished = true;
+      if (hardTimeoutId) clearTimeout(hardTimeoutId);
+      addDebug(`TTS fim: ${reason}`);
+      try { synth.cancel(); } catch {}
+      setState(STATES.IDLE);
+      if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 300);
+    };
+    hardTimeoutId = setTimeout(() => finishOnce('timeout-45s'), 45000);
+
     const doSpeak = () => {
       const voices = synth.getVoices();
+      addDebug(`${voices.length} vozes disponiveis`);
       const ptVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('pt'))
         || voices.find(v => v.default)
         || voices[0];
+
+      if (ptVoice) {
+        addDebug(`Voz: ${ptVoice.name} (${ptVoice.lang})`);
+      } else {
+        addDebug('AVISO: nenhuma voz encontrada');
+        finishOnce('no-voices');
+        return;
+      }
 
       // Chrome tem limite ~200 chars por utterance — quebra em pedacos
       const textToSpeak = clean.slice(0, 800);
@@ -364,9 +402,9 @@ export default function HandsFreeMode({ onClose, agentName }) {
 
       let idx = 0;
       const speakNext = () => {
+        if (finished) return;
         if (idx >= chunks.length) {
-          setState(STATES.IDLE);
-          if (autoRestart.current) setTimeout(() => startListeningRef.current?.(), 300);
+          finishOnce('done');
           return;
         }
         const utt = new SpeechSynthesisUtterance(chunks[idx]);
@@ -375,18 +413,32 @@ export default function HandsFreeMode({ onClose, agentName }) {
         utt.rate = 1.05;
         utt.pitch = 1;
         utt.volume = 1;
-        utt.onend = () => { idx++; speakNext(); };
+
+        // Timeout por chunk (alguns TTS nao disparam onend)
+        const chunkTimeout = setTimeout(() => {
+          console.warn('[HandsFree] chunk timeout, pulando');
+          idx++;
+          speakNext();
+        }, Math.max(5000, chunks[idx].length * 100));
+
+        utt.onend = () => {
+          clearTimeout(chunkTimeout);
+          idx++;
+          speakNext();
+        };
         utt.onerror = (e) => {
           console.warn('[HandsFree] TTS erro:', e.error || e);
+          clearTimeout(chunkTimeout);
           idx++;
           speakNext();
         };
         try {
           synth.speak(utt);
           // Workaround do bug do Chrome que pausa TTS apos ~15s
-          setTimeout(() => { if (synth.speaking) { synth.pause(); synth.resume(); } }, 10000);
+          setTimeout(() => { if (synth.speaking) { try { synth.pause(); synth.resume(); } catch {} } }, 10000);
         } catch (err) {
           console.error('[HandsFree] Falha ao falar:', err);
+          clearTimeout(chunkTimeout);
           idx++;
           speakNext();
         }
@@ -407,7 +459,7 @@ export default function HandsFreeMode({ onClose, agentName }) {
     } else {
       doSpeak();
     }
-  }, []);
+  }, [addDebug]);
 
   const toggleMode = () => {
     if (state === STATES.IDLE) { autoRestart.current = true; startListening(); }
@@ -451,6 +503,22 @@ export default function HandsFreeMode({ onClose, agentName }) {
           <X className="w-6 h-6" />
         </button>
       </div>
+
+      {/* Debug toggle */}
+      <button
+        data-testid="handsfree-debug-toggle"
+        onClick={() => setShowDebug(s => !s)}
+        className="absolute top-4 left-4 z-20 text-xs px-2 py-1 rounded"
+        style={{ color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.1)' }}
+      >
+        {showDebug ? 'Ocultar' : 'Debug'}
+      </button>
+      {showDebug && debugMsg && (
+        <div className="absolute top-14 left-4 z-20 p-3 rounded max-w-md text-xs font-mono whitespace-pre-line"
+          style={{ background: 'rgba(0,0,0,0.7)', color: 'rgba(180,220,255,0.9)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          {debugMsg}
+        </div>
+      )}
 
       {/* Center content */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6">
