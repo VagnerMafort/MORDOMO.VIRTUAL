@@ -178,8 +178,11 @@ async def speak_text(text: str = Query(..., max_length=5000)):
         buf = io.BytesIO()
         wav = wave.open(buf, "wb")
         try:
-            # Piper 1.4+ usa synthesize_wav e configura o wav automaticamente
-            voice.synthesize_wav(text, wav)
+            # length_scale < 1.0 = mais rapido, > 1.0 = mais lento
+            # noise_scale baixo = mais monotonico. Default 0.667 fica natural.
+            from piper.config import SynthesisConfig
+            cfg = SynthesisConfig(length_scale=0.85, noise_scale=0.667, noise_w_scale=0.8)
+            voice.synthesize_wav(text, wav, syn_config=cfg)
         finally:
             wav.close()
         buf.seek(0)

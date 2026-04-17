@@ -1,60 +1,43 @@
-const CACHE_NAME = 'novaclaw-v1';
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/manifest.json',
-];
+// Mordomo Virtual SW - Versao que SEMPRE busca conteudo novo (network-first)
+const CACHE_NAME = 'mordomo-v' + Date.now();
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
-  );
+  // Sobe imediato sem esperar
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      );
-    })
-  );
-  self.clients.claim();
+  event.waitUntil((async () => {
+    // Limpa TODOS os caches antigos
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+    // Assume controle imediato
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('fetch', (event) => {
-  const { request } = event;
-  const url = new URL(request.url);
+  const url = new URL(event.request.url);
 
-  // Skip API calls - always go to network
-  if (url.pathname.startsWith('/api')) {
+  // Nao intercepta API nem POST — sempre direto a rede
+  if (url.pathname.startsWith('/api/') || event.request.method !== 'GET') {
     return;
   }
 
-  // For navigation requests, try network first, fall back to cache
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).catch(() => caches.match('/index.html'))
-    );
-    return;
-  }
+  // Network-first: sempre tenta rede, cache so como fallback offline
+  event.respondWith((async () => {
+    try {
+      const fresh = await fetch(event.request);
+      return fresh;
+    } catch (_) {
+      const cached = await caches.match(event.request);
+      if (cached) return cached;
+      throw _;
+    }
+  })());
+});
 
-  // For static assets, try cache first, then network
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      return cached || fetch(request).then((response) => {
-        // Cache successful responses
-        if (response.status === 200) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-        }
-        return response;
-      }).catch(() => cached);
-    })
-  );
+// Permite a pagina forcar atualizacao
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
