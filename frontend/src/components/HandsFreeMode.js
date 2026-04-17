@@ -174,34 +174,18 @@ export default function HandsFreeMode({ onClose, agentName }) {
     });
   }, []);
 
-  // Start volume monitoring
+  // Visualizador simplificado - sem AudioContext (evita conflito com TTS no Windows/Edge)
   const startVolumeMonitor = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      audioCtxRef.current = ctx;
-      analyserRef.current = analyser;
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      const loop = () => {
-        analyser.getByteFrequencyData(data);
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) sum += data[i];
-        volumeRef.current = sum / data.length;
-        volumeLoopRef.current = requestAnimationFrame(loop);
-      };
-      loop();
-    } catch (e) { console.warn('Audio monitor failed:', e); }
+    // Animacao visual simulada baseada apenas no estado (sem acesso ao microfone)
+    const animate = () => {
+      volumeRef.current = 30 + Math.sin(Date.now() / 200) * 20;
+      volumeLoopRef.current = requestAnimationFrame(animate);
+    };
+    animate();
   }, []);
 
   const stopVolumeMonitor = useCallback(() => {
     cancelAnimationFrame(volumeLoopRef.current);
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    audioCtxRef.current?.close();
     volumeRef.current = 0;
   }, []);
 
@@ -337,20 +321,6 @@ export default function HandsFreeMode({ onClose, agentName }) {
     setState(STATES.SPEAKING);
     addDebug(`TTS start: ${text.length} chars`);
 
-    // CRITICAL: Para microfone/analisador ANTES de falar (AudioContext conflita com TTS no Windows/Edge)
-    try {
-      cancelAnimationFrame(volumeLoopRef.current);
-      streamRef.current?.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-        audioCtxRef.current.close();
-      }
-      audioCtxRef.current = null;
-      volumeRef.current = 0;
-    } catch (e) {
-      console.warn('[HandsFree] Falha ao fechar mic antes do TTS:', e);
-    }
-
     const clean = text.replace(/```[\s\S]*?```/g, '').replace(/`[^`]+`/g, '')
       .replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1')
       .replace(/#{1,3}\s/g, '').replace(/\[SKILL:[^\]]+\][^`]*/g, '')
@@ -419,13 +389,6 @@ export default function HandsFreeMode({ onClose, agentName }) {
       if (chunks.length === 0) chunks.push(textToSpeak);
 
       let idx = 0;
-      // Prime do Edge/Chrome: fala um utterance vazio rapidinho pra "desbloquear" o audio
-      try {
-        const primer = new SpeechSynthesisUtterance(' ');
-        primer.volume = 0;
-        synth.speak(primer);
-      } catch {}
-
       const speakNext = () => {
         if (finished) return;
         if (idx >= chunks.length) {
@@ -547,10 +510,36 @@ export default function HandsFreeMode({ onClose, agentName }) {
       >
         {showDebug ? 'Ocultar' : 'Debug'}
       </button>
-      {showDebug && debugMsg && (
+      {showDebug && (
         <div className="absolute top-14 left-4 z-20 p-3 rounded max-w-md text-xs font-mono whitespace-pre-line"
-          style={{ background: 'rgba(0,0,0,0.7)', color: 'rgba(180,220,255,0.9)', border: '1px solid rgba(255,255,255,0.1)' }}>
-          {debugMsg}
+          style={{ background: 'rgba(0,0,0,0.8)', color: 'rgba(180,220,255,0.9)', border: '1px solid rgba(255,255,255,0.15)' }}>
+          <div className="flex gap-2 mb-2">
+            <button
+              data-testid="test-tts-btn"
+              onClick={() => {
+                const s = window.speechSynthesis;
+                s.cancel();
+                addDebug('Teste TTS direto');
+                const voices = s.getVoices();
+                addDebug(`${voices.length} vozes`);
+                const v = voices.find(x => x.lang?.toLowerCase().startsWith('pt')) || voices[0];
+                if (v) addDebug(`Voz: ${v.name}`);
+                const u = new SpeechSynthesisUtterance('Teste de voz do Mordomo. Um, dois, três.');
+                if (v) u.voice = v;
+                u.lang = v?.lang || 'pt-BR';
+                u.onstart = () => addDebug('TESTE: iniciou');
+                u.onend = () => addDebug('TESTE: terminou OK');
+                u.onerror = (e) => addDebug(`TESTE erro: ${e.error}`);
+                s.speak(u);
+              }}
+              className="px-2 py-1 rounded bg-blue-600 text-white"
+            >Testar Voz</button>
+            <button
+              onClick={() => setDebugMsg('')}
+              className="px-2 py-1 rounded bg-gray-700 text-white"
+            >Limpar</button>
+          </div>
+          <div>{debugMsg || '(sem logs ainda)'}</div>
         </div>
       )}
 
