@@ -61,14 +61,12 @@ fi
 
 # 4. Gerar SSL (primeira vez)
 echo "[4/7] Gerando certificado SSL..."
-# Nginx temporario para validacao
+# Limpar tentativas anteriores
+docker stop tmp-nginx 2>/dev/null; docker rm tmp-nginx 2>/dev/null
+rm -rf nginx-temp.conf
 mkdir -p /tmp/certbot-www
-docker run -d --name tmp-nginx -p 80:80 \
-    -v /tmp/certbot-www:/var/www/certbot:ro \
-    -v $(pwd)/nginx-temp.conf:/etc/nginx/conf.d/default.conf:ro \
-    nginx:alpine 2>/dev/null || true
 
-# Criar nginx temp
+# Criar nginx temp ANTES de subir o container
 cat > nginx-temp.conf << 'NGINX'
 server {
     listen 80;
@@ -78,7 +76,6 @@ server {
 }
 NGINX
 
-docker stop tmp-nginx 2>/dev/null; docker rm tmp-nginx 2>/dev/null
 docker run -d --name tmp-nginx -p 80:80 \
     -v /tmp/certbot-www:/var/www/certbot:ro \
     -v $(pwd)/nginx-temp.conf:/etc/nginx/conf.d/default.conf:ro \
