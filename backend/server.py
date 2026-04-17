@@ -21,7 +21,7 @@ db = client[os.environ['DB_NAME']]
 JWT_ALGORITHM = "HS256"
 OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
 OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'qwen2.5:32b')
-EMERGENT_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+EMERGENT_KEY = ""  # Removido - deploy 100% independente (somente Ollama local)
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -789,32 +789,8 @@ async def stream_ollama(messages: list, ollama_url: str, model: str):
                         break
 
 async def chat_emergent_fallback(messages: list) -> str:
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-        # Build system message and history
-        system_msg = ""
-        history = []
-        user_text = ""
-        for m in messages:
-            if m["role"] == "system":
-                system_msg = m["content"]
-            elif m["role"] == "user":
-                user_text = m["content"]
-                history.append({"role": "user", "content": m["content"]})
-            elif m["role"] == "assistant":
-                history.append({"role": "assistant", "content": m["content"]})
-        chat = LlmChat(
-            api_key=EMERGENT_KEY,
-            session_id=str(uuid.uuid4()),
-            system_message=system_msg or "Voce e o NovaClaw, um assistente AI pessoal.",
-            initial_messages=history[:-1] if len(history) > 1 else []
-        )
-        chat = chat.with_model("openai", "gpt-4o-mini")
-        response = await chat.send_message(UserMessage(text=user_text))
-        return response
-    except Exception as e:
-        logger.error(f"Emergent fallback error: {e}")
-        return f"Desculpe, ocorreu um erro ao processar sua mensagem. Erro: {str(e)}"
+    """Fallback desativado - deploy 100% Ollama local."""
+    return "Erro: Ollama local indisponivel. Verifique se o servico Ollama esta rodando e o modelo foi baixado. Use: docker exec mordomo-ollama ollama list"
 
 async def process_skill_calls(text: str, user_id: str = None) -> tuple:
     """Check for skill calls in LLM response and execute them."""
