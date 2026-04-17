@@ -278,3 +278,12 @@ voice_models/
 backend/voice_models/
 *.onnx
 voice_models/whisper/models--mobiuslabsgmbh--faster-whisper-large-v3-turbo/blobs/e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
