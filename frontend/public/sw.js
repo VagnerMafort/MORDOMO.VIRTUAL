@@ -1,5 +1,5 @@
-// Mordomo Virtual SW - Versao que SEMPRE busca conteudo novo (network-first)
-const CACHE_NAME = 'mordomo-v' + Date.now();
+// Kaelum.AI SW - Versao que SEMPRE busca conteudo novo (network-first)
+const CACHE_NAME = 'kaelum-v' + Date.now();
 
 self.addEventListener('install', (event) => {
   // Sobe imediato sem esperar

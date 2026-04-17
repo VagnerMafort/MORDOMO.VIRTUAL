@@ -164,14 +164,12 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
       <div className="flex-1 flex flex-col">
         <div className="flex-1 flex items-center justify-center px-6">
           <div className="text-center animate-fade-in max-w-lg">
-            <div className="w-16 h-16 mx-auto mb-6 flex items-center justify-center" style={{ background: 'var(--accent)' }}>
-              <Zap className="w-8 h-8" style={{ color: 'var(--accent-text)' }} />
-            </div>
-            <h2 className="text-2xl font-black tracking-tighter mb-3" style={{ fontFamily: 'Outfit, sans-serif' }}>
-              Mordomo Virtual
+            <img src="/kaelum-icon.png" alt="Kaelum.AI" className="w-16 h-16 mx-auto mb-6 object-contain" />
+            <h2 className="text-2xl font-black tracking-tighter mb-3" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-primary)' }}>
+              Kaelum<span style={{ color: 'var(--accent-soft)' }}>.AI</span>
             </h2>
             <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
-              Seu mordomo virtual AI. Pergunte qualquer coisa, execute tarefas, automatize processos.
+              Assistente virtual inteligente. Pergunte qualquer coisa, execute tarefas, automatize processos.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {[
@@ -205,7 +203,7 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
       {/* TTS toggle bar */}
       <div className="hidden lg:flex items-center justify-between px-4 py-2" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
         <h3 className="text-sm font-medium truncate" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-secondary)' }}>
-          {messages.length > 0 ? 'Conversa ativa' : 'Mordomo Virtual'}
+          {messages.length > 0 ? 'Conversa ativa' : 'Kaelum.AI'}
         </h3>
         <button
           data-testid="tts-chat-toggle"
@@ -242,7 +240,7 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
               )}
               <div className="min-w-0 flex-1 pt-0.5">
                 <p className="text-xs font-medium mb-1" style={{ color: msg.role === 'user' ? 'var(--text-primary)' : 'var(--accent)', fontFamily: 'Outfit, sans-serif' }}>
-                  {msg.role === 'user' ? 'Voce' : 'Mordomo Virtual'}
+                  {msg.role === 'user' ? 'Voce' : 'Kaelum.AI'}
                 </p>
                 {msg.role === 'user' ? (
                   <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>{msg.content}</p>
@@ -264,7 +262,7 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
                 <Bot className="w-4 h-4" style={{ color: 'var(--accent-text)' }} />
               </div>
               <div className="min-w-0 flex-1 pt-0.5">
-                <p className="text-xs font-medium mb-1" style={{ color: 'var(--accent)', fontFamily: 'Outfit, sans-serif' }}>Mordomo Virtual</p>
+                <p className="text-xs font-medium mb-1" style={{ color: 'var(--accent)', fontFamily: 'Outfit, sans-serif' }}>Kaelum.AI</p>
                 <div
                   className="msg-content text-sm leading-relaxed"
                   style={{ color: 'var(--text-secondary)' }}

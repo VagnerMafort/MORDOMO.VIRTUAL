@@ -54,7 +54,7 @@ export default function SkillsDashboard({ onClose }) {
             <div>
               <h2 className="text-lg font-bold tracking-tight" style={{ fontFamily: 'Outfit, sans-serif' }}>Habilidades do Agente</h2>
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
-                Ative ou desative as capacidades do Mordomo Virtual
+                Ative ou desative as capacidades do Kaelum.AI
               </p>
             </div>
           </div>

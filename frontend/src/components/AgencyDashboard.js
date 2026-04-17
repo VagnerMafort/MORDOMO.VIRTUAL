@@ -137,7 +137,7 @@ export default function AgencyDashboard({ onClose, agentName }) {
     try { await api.post(`/agency/integrations/${platform}/sync`); loadAll(); } catch (e) { console.error(e); }
   };
 
-  const agencyName = `${agentName || 'Mordomo Virtual'} Agency`;
+  const agencyName = `${agentName || 'Kaelum.AI'} Agency`;
   const products = report?.products || [];
   const pieData = products.map((p, i) => ({ name: p.name, value: p.metrics?.spend || 0 })).filter(d => d.value > 0);
 

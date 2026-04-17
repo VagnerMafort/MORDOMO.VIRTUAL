@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Eye, EyeOff, Zap } from 'lucide-react';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Eye, EyeOff, Sun, Moon } from 'lucide-react';
 import axios from 'axios';
 
 const API = process.env.REACT_APP_BACKEND_URL + '/api';
 
 export default function LoginPage() {
   const { login, register } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [isRegister, setIsRegister] = useState(false);
   const [isForgot, setIsForgot] = useState(false);
   const [resetMode, setResetMode] = useState(false);
@@ -54,6 +56,15 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--bg-base)' }}>
+      <button
+        data-testid="theme-toggle-btn"
+        onClick={toggleTheme}
+        title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+        className="absolute top-4 right-4 z-20 p-2 transition-colors"
+        style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
+      >
+        {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+      </button>
       <div
         className="absolute inset-0 opacity-20"
         style={{
@@ -62,7 +73,7 @@ export default function LoginPage() {
           backgroundPosition: 'center',
         }}
       />
-      <div className="absolute inset-0" style={{ background: 'rgba(10,10,10,0.85)' }} />
+      <div className="absolute inset-0" style={{ background: theme === 'dark' ? 'rgba(10,10,10,0.85)' : 'rgba(255,255,255,0.85)' }} />
 
       <div
         data-testid="auth-form-container"
@@ -71,15 +82,13 @@ export default function LoginPage() {
       >
         <div className="p-8">
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 flex items-center justify-center" style={{ background: 'var(--accent)' }}>
-              <Zap className="w-5 h-5" style={{ color: 'var(--accent-text)' }} />
-            </div>
+            <img src="/kaelum-icon.png" alt="Kaelum.AI" className="w-12 h-12 object-contain flex-shrink-0" />
             <div>
-              <h1 className="text-2xl font-black tracking-tighter" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                Mordomo Virtual
+              <h1 className="text-2xl font-black tracking-tighter" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-primary)' }}>
+                Kaelum<span style={{ color: 'var(--accent-soft)' }}>.AI</span>
               </h1>
               <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                Mordomo Virtual AI
+                Assistente Virtual Inteligente
               </p>
             </div>
           </div>

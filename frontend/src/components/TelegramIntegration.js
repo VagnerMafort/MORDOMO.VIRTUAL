@@ -102,7 +102,7 @@ export default function TelegramIntegration() {
           </div>
 
           <p className="text-xs mt-3" style={{ color: 'var(--text-secondary)' }}>
-            Abra o Telegram, busque por <strong>@{status.connection.bot_username}</strong> e mande uma mensagem. O Mordomo Virtual vai responder!
+            Abra o Telegram, busque por <strong>@{status.connection.bot_username}</strong> e mande uma mensagem. O Kaelum.AI vai responder!
           </p>
 
           <button

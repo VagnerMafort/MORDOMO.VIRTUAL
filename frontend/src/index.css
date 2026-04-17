@@ -2,23 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --bg-base: #0A0A0A;
-  --bg-surface: #121212;
-  --bg-elevated: #1A1A1A;
-  --border-subtle: rgba(255, 255, 255, 0.1);
-  --border-focus: #FFD600;
-  --text-primary: #FFFFFF;
-  --text-secondary: #A1A1AA;
-  --text-tertiary: #71717A;
-  --accent: #FFD600;
-  --accent-hover: #F0C800;
-  --accent-text: #0A0A0A;
-  --success: #22C55E;
-  --error: #EF4444;
-  --info: #3B82F6;
-  --terminal-bg: #050505;
-  --terminal-text: #4ADE80;
+:root, [data-theme="dark"] {
+  /* Kaelum.AI — Dark Theme (padrão) */
+  --bg-base: #0a0a0a;
+  --bg-surface: #12132a;
+  --bg-elevated: #1c204f;
+  --border-subtle: rgba(169, 209, 236, 0.12);
+  --border-focus: #a9d1ec;
+  --text-primary: #ffffff;
+  --text-secondary: #a9d1ec;
+  --text-tertiary: #6b7280;
+  --accent: #2d3694;
+  --accent-hover: #3b46b5;
+  --accent-text: #ffffff;
+  --accent-soft: #a9d1ec;
+  --success: #22c55e;
+  --error: #ef4444;
+  --info: #a9d1ec;
+  --terminal-bg: #050510;
+  --terminal-text: #a9d1ec;
+  --scrollbar-thumb: rgba(169, 209, 236, 0.15);
+  --scrollbar-thumb-hover: rgba(169, 209, 236, 0.3);
+}
+
+[data-theme="light"] {
+  /* Kaelum.AI — Light Theme */
+  --bg-base: #ffffff;
+  --bg-surface: #f7f9fc;
+  --bg-elevated: #eef2f9;
+  --border-subtle: rgba(28, 32, 79, 0.12);
+  --border-focus: #2d3694;
+  --text-primary: #0a0a0a;
+  --text-secondary: #1c204f;
+  --text-tertiary: #6b7280;
+  --accent: #2d3694;
+  --accent-hover: #1c204f;
+  --accent-text: #ffffff;
+  --accent-soft: #a9d1ec;
+  --success: #16a34a;
+  --error: #dc2626;
+  --info: #1c204f;
+  --terminal-bg: #0a0a0a;
+  --terminal-text: #a9d1ec;
+  --scrollbar-thumb: rgba(28, 32, 79, 0.2);
+  --scrollbar-thumb-hover: rgba(28, 32, 79, 0.35);
 }
 
 * {
@@ -61,11 +88,11 @@ code, pre, .font-mono {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Animations */

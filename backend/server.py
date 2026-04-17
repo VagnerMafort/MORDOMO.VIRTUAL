@@ -172,7 +172,7 @@ async def register(body: RegisterInput):
         "user_id": user_id, "ollama_url": OLLAMA_URL, "ollama_model": OLLAMA_MODEL,
         "tts_enabled": True, "tts_language": "pt-BR",
         "skills_enabled": ["code_executor", "web_scraper", "web_search", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
-        "agent_name": "Mordomo Virtual",
+        "agent_name": "Kaelum.AI",
         "agent_personality": ""
     })
     return {"user": {"id": user_id, "email": email, "name": body.name.strip(), "role": "user"}, "access_token": access, "refresh_token": refresh}
@@ -544,7 +544,7 @@ async def get_settings(request: Request):
             "ollama_model": OLLAMA_MODEL,
             "tts_enabled": True,
             "tts_language": "pt-BR",
-            "agent_name": "Mordomo Virtual",
+            "agent_name": "Kaelum.AI",
             "agent_personality": "",
             "skills_enabled": ["code_executor", "web_scraper", "web_search", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
         }
@@ -939,7 +939,7 @@ async def send_message(conv_id: str, body: MessageCreate, request: Request):
         if agent and agent.get("system_prompt"):
             custom_prompt = agent["system_prompt"]
     elif settings and settings.get("agent_personality"):
-        agent_name = settings.get("agent_name", "Mordomo Virtual")
+        agent_name = settings.get("agent_name", "Kaelum.AI")
         personality = settings["agent_personality"]
         custom_prompt = f"Voce e o {agent_name}. {personality}\n\n" + SYSTEM_PROMPT.split("## SUAS HABILIDADES", 1)[-1] if "## SUAS HABILIDADES" in SYSTEM_PROMPT else f"Voce e o {agent_name}. {personality}\n\nResponda sempre em portugues brasileiro."
 
@@ -1456,7 +1456,7 @@ async def startup():
             "user_id": user_id, "ollama_url": OLLAMA_URL, "ollama_model": OLLAMA_MODEL,
             "tts_enabled": True, "tts_language": "pt-BR",
             "skills_enabled": ["code_executor", "web_scraper", "web_search", "url_summarizer", "file_manager", "calculator", "api_caller", "system_info", "datetime_info"],
-        "agent_name": "Mordomo Virtual",
+        "agent_name": "Kaelum.AI",
         "agent_personality": ""
         })
         logger.info(f"Admin criado: {admin_email}")
@@ -1470,6 +1470,11 @@ async def startup():
             "role": "admin", "blocked": False,
             "allowed_modules": ["chat", "handsfree", "mentorship", "agency", "telegram", "agents", "skills", "monitor", "workflows", "admin", "drive", "email", "sheets", "social", "automation"]
         }}
+    )
+    # Rebrand automático: Mordomo Virtual -> Kaelum.AI em todos os settings
+    await db.settings.update_many(
+        {"agent_name": {"$in": ["Mordomo Virtual", "NovaClaw", "Novaclaw"]}},
+        {"$set": {"agent_name": "Kaelum.AI"}}
     )
     # Write test credentials
     try:

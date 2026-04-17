@@ -204,7 +204,7 @@ export default function AgencyPanel({ onClose, agentName, onOpenDashboard }) {
     } catch (e) { console.error(e); }
   };
 
-  const agencyName = `${agentName || 'Mordomo Virtual'} Agency`;
+  const agencyName = `${agentName || 'Kaelum.AI'} Agency`;
   const pendingCount = approvals.filter(a => a.status === 'pending').length;
 
   const tabs = [

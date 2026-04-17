@@ -35,7 +35,7 @@ export default function ChatPage() {
   const [showIntegrations, setShowIntegrations] = useState(false);
   const [showWorkflows, setShowWorkflows] = useState(false);
   const [showSocial, setShowSocial] = useState(false);
-  const [agentName, setAgentName] = useState('Mordomo Virtual');
+  const [agentName, setAgentName] = useState('Kaelum.AI');
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
   const [hasAgencyAccess, setHasAgencyAccess] = useState(false);
   const [allowedModules, setAllowedModules] = useState([]);

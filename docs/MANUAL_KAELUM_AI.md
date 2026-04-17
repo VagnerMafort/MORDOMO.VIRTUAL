@@ -1,4 +1,4 @@
-# 📘 MANUAL DO USUÁRIO — MORDOMO VIRTUAL
+# 📘 MANUAL DO USUÁRIO — KAELUM.AI
 
 **Versão:** 1.0 · Produção
 **URL:** https://mordomo.virtual.grupomafort.com
@@ -28,7 +28,7 @@
 
 ## 1. VISÃO GERAL
 
-O **Mordomo Virtual** é um agente de inteligência artificial completo, multi-usuário, que roda **100% na sua VPS** sem depender de serviços externos pagos (OpenAI, Anthropic). Ele combina:
+O **Kaelum.AI** é um agente de inteligência artificial completo, multi-usuário, que roda **100% na sua VPS** sem depender de serviços externos pagos (OpenAI, Anthropic). Ele combina:
 
 - 💬 Chat conversacional com IA local (Ollama Qwen 2.5)
 - 📱 Funciona como aplicativo no celular (PWA)
@@ -244,7 +244,7 @@ Permite que você converse com seu Mordomo **pelo Telegram no celular**, sem pre
 
 1. No Telegram, procure `@BotFather`
 2. Envie `/newbot`
-3. Escolha um nome (ex: "Meu Mordomo Virtual")
+3. Escolha um nome (ex: "Meu Kaelum.AI")
 4. Escolha um username (precisa terminar em `bot`, ex: `meu_mordomo_bot`)
 5. BotFather te envia um **TOKEN** (algo tipo `123456:ABCdef...`)
 
@@ -640,7 +640,7 @@ Siga essa ordem na primeira semana:
 
 ## 🎓 CONCLUSÃO
 
-O **Mordomo Virtual** é seu **assistente 24/7**, **vendedor automático** e **criador de produtos digitais**, tudo rodando no seu próprio servidor, **sem custo de API**, com **privacidade total** (seus dados nunca saem da sua VPS).
+O **Kaelum.AI** é seu **assistente 24/7**, **vendedor automático** e **criador de produtos digitais**, tudo rodando no seu próprio servidor, **sem custo de API**, com **privacidade total** (seus dados nunca saem da sua VPS).
 
 **Use, explore, personalize.** Qualquer dúvida, consulte este manual ou os logs do sistema.
 

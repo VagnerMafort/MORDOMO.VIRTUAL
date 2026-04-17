@@ -1,7 +1,13 @@
-# Mordomo Virtual - PRD
+# Kaelum.AI - PRD
 
 ## Original Problem Statement
-AI agent multi-user "Mordomo Virtual" para VPS de 48GB sem GPU. Requisitos: PWA responsivo, chat streaming, Telegram, agência de marketing automatizada, mentorias com export, dual LLM (Ollama 7B/32B), monitoramento do sistema, voz hands-free 100% local, painel administrativo completo. Sem dependência da plataforma Emergent — tudo roda na VPS do cliente com custo zero.
+AI agent multi-user "Kaelum.AI" (renomeado de "Mordomo Virtual" em Feb 18, 2026) para VPS de 48GB sem GPU. Requisitos: PWA responsivo, chat streaming, Telegram, agência de marketing automatizada, mentorias com export, dual LLM (Ollama 7B/32B), monitoramento do sistema, voz hands-free 100% local, painel administrativo completo. Sem dependência da plataforma Emergent — tudo roda na VPS do cliente com custo zero.
+
+## Brand & UI (Feb 18, 2026)
+- **Nome**: Kaelum.AI
+- **Paleta**: `#0a0a0a` (preto), `#1c204f` (azul escuro), `#2d3694` (azul royal — accent), `#a9d1ec` (azul claro — text secondary), `#ffffff` (branco)
+- **Logos**: `/frontend/public/kaelum-logo-horizontal.png`, `kaelum-logo-text.png`, `kaelum-icon.png`, `kaelum-favicon.png`
+- **Temas**: Light + Dark (toggle no Sidebar/LoginPage), persistido em `localStorage.kaelum_theme`. CSS vars via `[data-theme]` attribute.
 
 ## User Language
 Portuguese (pt-BR) — SEMPRE responder em português.

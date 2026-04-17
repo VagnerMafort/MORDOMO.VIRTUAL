@@ -147,7 +147,7 @@ export default function HandsFreeMode({ onClose, agentName }) {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await api.post('/conversations', { title: `[Voz] ${agentName || 'Mordomo Virtual'}` });
+        const { data } = await api.post('/conversations', { title: `[Voz] ${agentName || 'Kaelum.AI'}` });
         setConvId(data.id);
         convIdRef.current = data.id;
       } catch (e) { console.error(e); }
@@ -395,7 +395,7 @@ export default function HandsFreeMode({ onClose, agentName }) {
       <div className="relative z-10 flex items-center justify-between px-6 py-4">
         <div>
           <h2 className="text-lg font-black tracking-tighter" style={{ fontFamily: 'Outfit', color: 'rgba(255,255,255,0.9)' }}>
-            Mordomo Virtual
+            Kaelum.AI
           </h2>
           <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
             {agentName || 'Assistente AI'} &middot; Modo Voz

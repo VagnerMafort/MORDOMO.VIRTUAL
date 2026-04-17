@@ -1,9 +1,11 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Settings, Cpu, Trash2, MessageSquare, LogOut, Zap, Pencil, Check, X, Bot, Building2, GraduationCap, Activity, Shield, Plug, Workflow, Share2 } from 'lucide-react';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Plus, Settings, Cpu, Trash2, MessageSquare, LogOut, Zap, Pencil, Check, X, Bot, Building2, GraduationCap, Activity, Shield, Plug, Workflow, Share2, Sun, Moon } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Sidebar({ conversations, activeConvId, onSelect, onCreate, onDelete, onRename, onOpenSettings, onOpenSkills, onOpenAgents, onOpenAgency, onOpenMentorship, onOpenMonitor, onOpenAdmin, onOpenIntegrations, onOpenWorkflows, onOpenSocial, agentName, allowedModules = [] }) {
   const { user, logout } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
 
@@ -27,13 +29,20 @@ export default function Sidebar({ conversations, activeConvId, onSelect, onCreat
     >
       {/* Header */}
       <div className="p-4 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <div className="w-8 h-8 flex items-center justify-center flex-shrink-0" style={{ background: 'var(--accent)' }}>
-          <Zap className="w-4 h-4" style={{ color: 'var(--accent-text)' }} />
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-sm font-bold tracking-tight truncate" style={{ fontFamily: 'Outfit, sans-serif' }}>{agentName || 'Mordomo Virtual'}</h2>
+        <img src="/kaelum-icon.png" alt="Kaelum.AI" className="w-9 h-9 flex-shrink-0 object-contain" />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-bold tracking-tight truncate" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-primary)' }}>{agentName || 'Kaelum.AI'}</h2>
           <p className="text-xs truncate" style={{ color: 'var(--text-tertiary)' }}>{user?.name || user?.email}</p>
         </div>
+        <button
+          data-testid="theme-toggle-btn"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+          className="p-1.5 transition-colors"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
       </div>
 
       {/* New chat button */}

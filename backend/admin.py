@@ -186,7 +186,7 @@ async def create_user(body: CreateUserInput, request: Request, admin: dict = Dep
             "user_id": user_id,
             "tts_enabled": True, "tts_language": "pt-BR",
             "skills_enabled": ["code_executor", "web_scraper", "web_search", "calculator", "datetime_info"],
-            "agent_name": "Mordomo Virtual",
+            "agent_name": "Kaelum.AI",
             "agent_personality": ""
         }},
         upsert=True
