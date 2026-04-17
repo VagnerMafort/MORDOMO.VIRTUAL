@@ -108,16 +108,18 @@ Status: Feb 2026 · Deploy em produção na VPS `mordomo.virtual.grupomafort.com
 
 ---
 
-### 🚀 FASE 4 — Admin Pro + Controle 🔹 P1 (1-2 sessões)
+### 🚀 FASE 4 — Admin Pro + Controle ✅ CONCLUÍDO (Feb 18, 2026)
 #### Dashboard Admin
-- 🔴 Admin Dashboard completo (usuários online, sessões, CPU/RAM, alertas)
-- 🔴 User Manager (CRUD avançado, bloquear/desbloquear)
-- 🔴 Module Access Control (liberar/ocultar módulo por usuário)
-- 🔴 Usage Metering (msgs, uploads, tempo)
-- 🔴 Quota Controller (limites por usuário)
-- 🔴 Audit Log (login, mudanças de permissão)
-- 🔴 Session Monitor (quem tá online agora)
-- 🔴 Password Recovery (email de reset)
+- ✅ Admin Dashboard (usuários online, CPU/RAM, alertas)
+- ✅ User Manager (CRUD + bloquear/desbloquear + promover admin)
+- ✅ Module Access Control (14 módulos granulares por usuário)
+- ✅ Usage Metering (msgs, tasks, uploads por dia)
+- ✅ Quota Controller (limites diários)
+- ✅ Audit Log (login, CRUD users, quota, password resets)
+- ✅ Session Monitor (online em tempo real — IP + UA + last_seen)
+- ✅ Password Recovery (admin-driven + self-service com token)
+- ✅ Frontend: 7 abas (Dashboard, Usuários, Módulos, Uso, Logs, Sessões, Sistema)
+- ✅ Testing agent: 30/30 backend PASS + frontend 100%
 
 ---
 
@@ -174,7 +176,8 @@ Status: Feb 2026 · Deploy em produção na VPS `mordomo.virtual.grupomafort.com
 
 ## 🎯 PRÓXIMO PASSO IMEDIATO
 
-Começar **Fase 1 (Google OAuth)** por:
+**FASE 1 (Google OAuth)** — ✅ FASE 4 concluída. Agora partir para Google Ecosystem:
 1. Cobre 10 skills de uma vez com uma autorização
 2. Infra-estrutura OAuth base serve pra Fase 2 também
-3. Desbloqueou Gmail/Drive/Sheets que são uso diário alto
+3. Desbloqueia Gmail/Drive/Sheets que são uso diário alto
+4. Controle por usuário já disponível via Admin → Módulos
