@@ -1,15 +1,22 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Eye, EyeOff, Zap } from 'lucide-react';
+import axios from 'axios';
+
+const API = process.env.REACT_APP_BACKEND_URL + '/api';
 
 export default function LoginPage() {
   const { login, register } = useAuth();
   const [isRegister, setIsRegister] = useState(false);
+  const [isForgot, setIsForgot] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [resetToken, setResetToken] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
 
   const formatError = (detail) => {
@@ -22,10 +29,18 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError(''); setInfo('');
     setLoading(true);
     try {
-      if (isRegister) {
+      if (isForgot && !resetMode) {
+        await axios.post(`${API}/auth/forgot-password`, { email });
+        setInfo('Se o e-mail estiver cadastrado, um token foi gerado. Solicite ao administrador.');
+      } else if (resetMode) {
+        await axios.post(`${API}/auth/reset-password`, { token: resetToken, new_password: password });
+        setInfo('Senha redefinida com sucesso! Entre com sua nova senha.');
+        setResetMode(false); setIsForgot(false);
+        setResetToken(''); setPassword('');
+      } else if (isRegister) {
         await register(email, password, name);
       } else {
         await login(email, password);
@@ -70,7 +85,7 @@ export default function LoginPage() {
           </div>
 
           <h2 className="text-lg font-semibold mb-6" style={{ fontFamily: 'Outfit, sans-serif' }}>
-            {isRegister ? 'Criar Conta' : 'Entrar no Sistema'}
+            {resetMode ? 'Redefinir Senha' : isForgot ? 'Esqueci minha senha' : isRegister ? 'Criar Conta' : 'Entrar no Sistema'}
           </h2>
 
           {error && (
@@ -78,9 +93,14 @@ export default function LoginPage() {
               {error}
             </div>
           )}
+          {info && (
+            <div data-testid="auth-info" className="mb-4 p-3 text-sm" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: 'var(--success)' }}>
+              {info}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {isRegister && (
+            {isRegister && !isForgot && !resetMode && (
               <div>
                 <label className="block text-xs mb-1.5 font-medium" style={{ color: 'var(--text-secondary)' }}>Nome</label>
                 <input
@@ -97,46 +117,67 @@ export default function LoginPage() {
                 />
               </div>
             )}
-            <div>
-              <label className="block text-xs mb-1.5 font-medium" style={{ color: 'var(--text-secondary)' }}>E-mail de Acesso</label>
-              <input
-                data-testid="login-email-input"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                placeholder="seu@email.com"
-                className="w-full py-3 px-4 text-sm outline-none transition-all"
-                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
-                onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border-subtle)'}
-              />
-            </div>
-            <div>
-              <label className="block text-xs mb-1.5 font-medium" style={{ color: 'var(--text-secondary)' }}>Senha</label>
-              <div className="relative">
+            {!resetMode && (
+              <div>
+                <label className="block text-xs mb-1.5 font-medium" style={{ color: 'var(--text-secondary)' }}>E-mail de Acesso</label>
                 <input
-                  data-testid="login-password-input"
-                  type={showPw ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  data-testid="login-email-input"
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
                   required
-                  placeholder="********"
-                  className="w-full py-3 px-4 pr-12 text-sm outline-none transition-all"
+                  placeholder="seu@email.com"
+                  className="w-full py-3 px-4 text-sm outline-none transition-all"
                   style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
                   onFocus={e => e.target.style.borderColor = 'var(--accent)'}
                   onBlur={e => e.target.style.borderColor = 'var(--border-subtle)'}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                  style={{ color: 'var(--text-tertiary)' }}
-                >
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
               </div>
-            </div>
+            )}
+            {resetMode && (
+              <div>
+                <label className="block text-xs mb-1.5 font-medium" style={{ color: 'var(--text-secondary)' }}>Token de recuperação</label>
+                <input
+                  data-testid="reset-token-input"
+                  type="text"
+                  value={resetToken}
+                  onChange={e => setResetToken(e.target.value)}
+                  required
+                  placeholder="Cole aqui o token recebido"
+                  className="w-full py-3 px-4 text-sm outline-none transition-all"
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                />
+              </div>
+            )}
+            {!isForgot && (
+              <div>
+                <label className="block text-xs mb-1.5 font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  {resetMode ? 'Nova senha' : 'Senha'}
+                </label>
+                <div className="relative">
+                  <input
+                    data-testid="login-password-input"
+                    type={showPw ? 'text' : 'password'}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                    placeholder="********"
+                    className="w-full py-3 px-4 pr-12 text-sm outline-none transition-all"
+                    style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                    onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border-subtle)'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw(!showPw)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    style={{ color: 'var(--text-tertiary)' }}
+                  >
+                    {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <button
               data-testid="auth-submit-btn"
@@ -156,15 +197,15 @@ export default function LoginPage() {
                   <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent-text)' }} />
                 </span>
               ) : (
-                isRegister ? 'Criar Conta' : 'Entrar'
+                resetMode ? 'Redefinir senha' : isForgot ? 'Gerar token de recuperação' : isRegister ? 'Criar Conta' : 'Entrar'
               )}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center flex flex-col gap-2">
             <button
               data-testid="toggle-auth-mode"
-              onClick={() => { setIsRegister(!isRegister); setError(''); }}
+              onClick={() => { setIsRegister(!isRegister); setIsForgot(false); setResetMode(false); setError(''); setInfo(''); }}
               className="text-sm transition-colors"
               style={{ color: 'var(--text-tertiary)' }}
               onMouseEnter={e => e.target.style.color = 'var(--accent)'}
@@ -172,6 +213,26 @@ export default function LoginPage() {
             >
               {isRegister ? 'Ja tem conta? Entrar' : 'Nao tem conta? Criar'}
             </button>
+            {!isRegister && !resetMode && (
+              <button
+                data-testid="forgot-password-btn"
+                onClick={() => { setIsForgot(!isForgot); setError(''); setInfo(''); }}
+                className="text-xs transition-colors"
+                style={{ color: 'var(--text-tertiary)' }}
+              >
+                {isForgot ? '← Voltar ao login' : 'Esqueci minha senha'}
+              </button>
+            )}
+            {!isRegister && (
+              <button
+                data-testid="have-token-btn"
+                onClick={() => { setResetMode(!resetMode); setIsForgot(false); setError(''); setInfo(''); }}
+                className="text-xs transition-colors"
+                style={{ color: 'var(--text-tertiary)' }}
+              >
+                {resetMode ? '← Voltar ao login' : 'Já tenho um token de recuperação'}
+              </button>
+            )}
           </div>
         </div>
       </div>

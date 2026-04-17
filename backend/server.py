@@ -59,8 +59,16 @@ async def get_current_user(request: Request) -> dict:
         user = await db.users.find_one({"_id": ObjectId(payload["sub"])})
         if not user:
             raise HTTPException(status_code=401, detail="Usuario nao encontrado")
+        if user.get("blocked"):
+            raise HTTPException(status_code=403, detail="Conta bloqueada. Contate o administrador.")
         user["_id"] = str(user["_id"])
         user.pop("password_hash", None)
+        # Track session (fire-and-forget)
+        try:
+            import admin as admin_mod
+            await admin_mod.track_session(user["_id"], user.get("email", ""), request)
+        except Exception:
+            pass
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expirado")
@@ -150,6 +158,10 @@ async def register(body: RegisterInput):
         "password_hash": hash_password(body.password),
         "name": body.name.strip(),
         "role": "user",
+        "allowed_modules": ["chat", "handsfree", "mentorship", "telegram", "agents", "skills", "monitor"],
+        "blocked": False,
+        "quota": {},
+        "login_count": 0,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     result = await db.users.insert_one(user_doc)
@@ -166,7 +178,7 @@ async def register(body: RegisterInput):
     return {"user": {"id": user_id, "email": email, "name": body.name.strip(), "role": "user"}, "access_token": access, "refresh_token": refresh}
 
 @api_router.post("/auth/login")
-async def login(body: LoginInput):
+async def login(body: LoginInput, request: Request):
     email = body.email.strip().lower()
     # Brute force check
     identifier = email
@@ -185,11 +197,24 @@ async def login(body: LoginInput):
             upsert=True
         )
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+    if user.get("blocked"):
+        raise HTTPException(status_code=403, detail="Conta bloqueada. Contate o administrador.")
     await db.login_attempts.delete_one({"identifier": identifier})
     user_id = str(user["_id"])
+    # Update last_login + login_count
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"last_login": datetime.now(timezone.utc).isoformat()}, "$inc": {"login_count": 1}}
+    )
+    # Audit
+    try:
+        import admin as admin_mod
+        await admin_mod.log_audit(user_id, "auth.login", user_id, {}, ip=(request.client.host if request.client else ""), user_email=email)
+    except Exception:
+        pass
     access = create_access_token(user_id, email)
     refresh = create_refresh_token(user_id)
-    return {"user": {"id": user_id, "email": email, "name": user.get("name", ""), "role": user.get("role", "user")}, "access_token": access, "refresh_token": refresh}
+    return {"user": {"id": user_id, "email": email, "name": user.get("name", ""), "role": user.get("role", "user"), "allowed_modules": user.get("allowed_modules", [])}, "access_token": access, "refresh_token": refresh}
 
 @api_router.post("/auth/logout")
 async def logout():
@@ -198,6 +223,11 @@ async def logout():
 @api_router.get("/auth/me")
 async def me(request: Request):
     user = await get_current_user(request)
+    # Garantir allowed_modules no retorno
+    full = await db.users.find_one({"_id": ObjectId(user["_id"])})
+    if full:
+        user["allowed_modules"] = full.get("allowed_modules", [])
+        user["blocked"] = full.get("blocked", False)
     return user
 
 class RefreshInput(BaseModel):
@@ -823,9 +853,15 @@ async def process_skill_calls(text: str, user_id: str = None) -> tuple:
 @api_router.post("/conversations/{conv_id}/messages")
 async def send_message(conv_id: str, body: MessageCreate, request: Request):
     user = await get_current_user(request)
+    # Quota check
+    import admin as admin_mod
+    if not await admin_mod.check_quota(user["_id"], "messages"):
+        raise HTTPException(status_code=429, detail="Cota diária de mensagens atingida. Contate o administrador.")
     conv = await db.conversations.find_one({"id": conv_id, "user_id": user["_id"]})
     if not conv:
         raise HTTPException(status_code=404, detail="Conversa nao encontrada")
+    # Incrementa contador de uso
+    await admin_mod.increment_usage(user["_id"], "messages", 1)
     now = datetime.now(timezone.utc).isoformat()
     user_msg_id = str(uuid.uuid4())
     await db.messages.insert_one({
@@ -1175,6 +1211,12 @@ app.include_router(mentorship.router)
 import voice
 app.include_router(voice.router)
 
+# Admin module (FASE 4 — user mgmt, module access, quota, audit, sessions)
+import admin as admin_mod
+admin_mod.init(db, get_current_user)
+app.include_router(admin_mod.router)
+app.include_router(admin_mod.public_router)
+
 # Smart LLM
 import smart_llm
 smart_llm.init(db, OLLAMA_URL, "qwen2.5:7b", OLLAMA_MODEL)
@@ -1305,6 +1347,14 @@ async def startup():
     await db.response_cache.create_index("created_at")
     await db.conversation_summaries.create_index("conversation_id", unique=True)
     await db.background_tasks.create_index("status")
+    # Admin module indexes
+    await db.audit_log.create_index([("created_at", -1)])
+    await db.sessions.create_index([("user_id", 1), ("ip", 1)], unique=True)
+    await db.sessions.create_index("last_seen")
+    await db.usage_metering.create_index([("user_id", 1), ("date", 1)], unique=True)
+    await db.usage_metering.create_index("date")
+    await db.password_resets.create_index("token", unique=True)
+    await db.password_resets.create_index("expires_at")
     # Start rules evaluation engine
     asyncio.create_task(rules_engine.rules_evaluation_loop())
     # Start background task worker
@@ -1321,6 +1371,8 @@ async def startup():
         result = await db.users.insert_one({
             "email": admin_email, "password_hash": hashed,
             "name": "Admin", "role": "admin",
+            "allowed_modules": ["chat", "handsfree", "mentorship", "agency", "telegram", "agents", "skills", "monitor", "admin", "drive", "email", "sheets", "social", "automation"],
+            "blocked": False, "quota": {}, "login_count": 0,
             "created_at": datetime.now(timezone.utc).isoformat()
         })
         user_id = str(result.inserted_id)
@@ -1335,6 +1387,14 @@ async def startup():
     elif not verify_password(admin_password, existing["password_hash"]):
         await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
         logger.info("Senha do admin atualizada")
+    # Garantir que admin tem todos os módulos liberados e sem bloqueio
+    await db.users.update_one(
+        {"email": admin_email},
+        {"$set": {
+            "role": "admin", "blocked": False,
+            "allowed_modules": ["chat", "handsfree", "mentorship", "agency", "telegram", "agents", "skills", "monitor", "admin", "drive", "email", "sheets", "social", "automation"]
+        }}
+    )
     # Write test credentials
     try:
         os.makedirs("/app/memory", exist_ok=True)

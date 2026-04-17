@@ -9,12 +9,13 @@ import AgencyPanel from '@/components/AgencyPanel';
 import AgencyDashboard from '@/components/AgencyDashboard';
 import MentorshipPanel from '@/components/MentorshipPanel';
 import MonitorPanel from '@/components/MonitorPanel';
+import AdminPanel from '@/components/AdminPanel';
 import HandsFreeMode from '@/components/HandsFreeMode';
 import WakeWordListener from '@/components/WakeWordListener';
 import { Menu, Headphones } from 'lucide-react';
 
 export default function ChatPage() {
-  const { api } = useAuth();
+  const { api, user } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -26,9 +27,11 @@ export default function ChatPage() {
   const [showDashboard, setShowDashboard] = useState(false);
   const [showMentorship, setShowMentorship] = useState(false);
   const [showMonitor, setShowMonitor] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
   const [agentName, setAgentName] = useState('Mordomo Virtual');
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
   const [hasAgencyAccess, setHasAgencyAccess] = useState(false);
+  const [allowedModules, setAllowedModules] = useState([]);
 
   // Load settings and agency access
   useEffect(() => {
@@ -41,6 +44,10 @@ export default function ChatPage() {
       try {
         const { data } = await api.get('/agency/access/check');
         setHasAgencyAccess(data.has_access);
+      } catch {}
+      try {
+        const { data } = await api.get('/auth/me');
+        if (Array.isArray(data.allowed_modules)) setAllowedModules(data.allowed_modules);
       } catch {}
     })();
   }, [api]);
@@ -119,6 +126,7 @@ export default function ChatPage() {
           conversations={conversations}
           activeConvId={activeConvId}
           agentName={agentName}
+          allowedModules={allowedModules}
           onSelect={(id) => { setActiveConvId(id); setSidebarOpen(false); }}
           onCreate={createConversation}
           onDelete={deleteConversation}
@@ -129,6 +137,7 @@ export default function ChatPage() {
           onOpenAgency={hasAgencyAccess ? () => { setShowAgency(true); setSidebarOpen(false); } : null}
           onOpenMentorship={() => { setShowMentorship(true); setSidebarOpen(false); }}
           onOpenMonitor={() => { setShowMonitor(true); setSidebarOpen(false); }}
+          onOpenAdmin={user?.role === 'admin' ? () => { setShowAdmin(true); setSidebarOpen(false); } : null}
         />
       </div>
 
@@ -179,6 +188,7 @@ export default function ChatPage() {
       {showDashboard && <AgencyDashboard onClose={() => setShowDashboard(false)} agentName={agentName} />}
       {showMentorship && <MentorshipPanel onClose={() => setShowMentorship(false)} />}
       {showMonitor && <MonitorPanel onClose={() => setShowMonitor(false)} />}
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
       {/* Hands-free Mode */}
       {showHandsFree && <HandsFreeMode onClose={() => { setShowHandsFree(false); setWakeWordEnabled(prev => prev); fetchConversations(); }} agentName={agentName} />}
       {/* Wake Word Listener (runs in background) */}

@@ -1,11 +1,13 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Settings, Cpu, Trash2, MessageSquare, LogOut, Zap, Pencil, Check, X, Bot, Building2, GraduationCap, Activity } from 'lucide-react';
+import { Plus, Settings, Cpu, Trash2, MessageSquare, LogOut, Zap, Pencil, Check, X, Bot, Building2, GraduationCap, Activity, Shield } from 'lucide-react';
 import { useState } from 'react';
 
-export default function Sidebar({ conversations, activeConvId, onSelect, onCreate, onDelete, onRename, onOpenSettings, onOpenSkills, onOpenAgents, onOpenAgency, onOpenMentorship, onOpenMonitor, agentName }) {
+export default function Sidebar({ conversations, activeConvId, onSelect, onCreate, onDelete, onRename, onOpenSettings, onOpenSkills, onOpenAgents, onOpenAgency, onOpenMentorship, onOpenMonitor, onOpenAdmin, agentName, allowedModules = [] }) {
   const { user, logout } = useAuth();
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
+
+  const canSee = (key) => allowedModules.length === 0 || allowedModules.includes(key) || user?.role === 'admin';
 
   const startEdit = (conv) => {
     setEditingId(conv.id);
@@ -119,17 +121,19 @@ export default function Sidebar({ conversations, activeConvId, onSelect, onCreat
 
       {/* Bottom actions */}
       <div className="p-3 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-        <button
-          data-testid="open-agents-btn"
-          onClick={onOpenAgents}
-          className="w-full py-2 px-3 text-xs font-medium flex items-center gap-2 transition-colors"
-          style={{ color: 'var(--text-secondary)' }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-        >
-          <Bot className="w-4 h-4" /> Meus Agentes
-        </button>
-        {onOpenAgency && (
+        {canSee('agents') && (
+          <button
+            data-testid="open-agents-btn"
+            onClick={onOpenAgents}
+            className="w-full py-2 px-3 text-xs font-medium flex items-center gap-2 transition-colors"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+          >
+            <Bot className="w-4 h-4" /> Meus Agentes
+          </button>
+        )}
+        {onOpenAgency && canSee('agency') && (
           <button
             data-testid="open-agency-btn"
             onClick={onOpenAgency}
@@ -141,36 +145,54 @@ export default function Sidebar({ conversations, activeConvId, onSelect, onCreat
             <Building2 className="w-4 h-4" /> Agencia
           </button>
         )}
-        <button
-          data-testid="open-mentorship-btn"
-          onClick={onOpenMentorship}
-          className="w-full py-2 px-3 text-xs font-medium flex items-center gap-2 transition-colors"
-          style={{ color: 'var(--text-secondary)' }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-        >
-          <GraduationCap className="w-4 h-4" /> Criar Mentoria
-        </button>
-        <button
-          data-testid="open-skills-btn"
-          onClick={onOpenSkills}
-          className="w-full py-2 px-3 text-xs font-medium flex items-center gap-2 transition-colors"
-          style={{ color: 'var(--text-secondary)' }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-        >
-          <Cpu className="w-4 h-4" /> Habilidades do Agente
-        </button>
-        <button
-          data-testid="open-monitor-btn"
-          onClick={onOpenMonitor}
-          className="w-full py-2 px-3 text-xs font-medium flex items-center gap-2 transition-colors"
-          style={{ color: 'var(--text-secondary)' }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-        >
-          <Activity className="w-4 h-4" /> Monitoramento
-        </button>
+        {canSee('mentorship') && (
+          <button
+            data-testid="open-mentorship-btn"
+            onClick={onOpenMentorship}
+            className="w-full py-2 px-3 text-xs font-medium flex items-center gap-2 transition-colors"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+          >
+            <GraduationCap className="w-4 h-4" /> Criar Mentoria
+          </button>
+        )}
+        {canSee('skills') && (
+          <button
+            data-testid="open-skills-btn"
+            onClick={onOpenSkills}
+            className="w-full py-2 px-3 text-xs font-medium flex items-center gap-2 transition-colors"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+          >
+            <Cpu className="w-4 h-4" /> Habilidades do Agente
+          </button>
+        )}
+        {canSee('monitor') && (
+          <button
+            data-testid="open-monitor-btn"
+            onClick={onOpenMonitor}
+            className="w-full py-2 px-3 text-xs font-medium flex items-center gap-2 transition-colors"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+          >
+            <Activity className="w-4 h-4" /> Monitoramento
+          </button>
+        )}
+        {user?.role === 'admin' && onOpenAdmin && (
+          <button
+            data-testid="open-admin-btn"
+            onClick={onOpenAdmin}
+            className="w-full py-2 px-3 text-xs font-bold flex items-center gap-2 transition-colors"
+            style={{ color: 'var(--accent)', background: 'rgba(255,214,0,0.05)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,214,0,0.12)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,214,0,0.05)'; }}
+          >
+            <Shield className="w-4 h-4" /> Painel Admin
+          </button>
+        )}
         <button
           data-testid="open-settings-btn"
           onClick={onOpenSettings}
