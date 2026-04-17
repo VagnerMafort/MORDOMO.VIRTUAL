@@ -1105,6 +1105,24 @@ async def health():
         pass
     return {"status": "online", "ollama": ollama_ok, "fallback": bool(EMERGENT_KEY)}
 
+@api_router.get("/docs/manual")
+async def download_manual(format: str = "pdf"):
+    """Download the user manual in PDF or Markdown format."""
+    from fastapi.responses import FileResponse
+    base = os.path.join(os.path.dirname(__file__), "static_docs")
+    if format.lower() == "md":
+        path = os.path.join(base, "MANUAL_MORDOMO_VIRTUAL.md")
+        filename = "Manual_Mordomo_Virtual.md"
+        media = "text/markdown"
+    else:
+        path = os.path.join(base, "MANUAL_MORDOMO_VIRTUAL.pdf")
+        filename = "Manual_Mordomo_Virtual.pdf"
+        media = "application/pdf"
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Manual nao encontrado")
+    return FileResponse(path, media_type=media, filename=filename)
+
+
 # ─── Include Router & Middleware ─────────────────────────────────────────────
 # Agency module
 import agency
