@@ -93,13 +93,14 @@ Status: Feb 2026 · Deploy em produção na VPS `mordomo.virtual.grupomafort.com
 
 ---
 
-### 🚀 FASE 2 — Meta Ecosystem ⭐ P0 (1 sessão)
-- 🔴 Meta OAuth base
-- 🔴 Instagram Publisher (posts, reels, stories, carrossel)
-- 🔴 Instagram DM Auto-Responder
-- 🔴 Instagram Comment Responder
-- 🔴 WhatsApp Business API (responder com IA)
-- 🔴 Facebook (opcional, baixa prioridade)
+### ✅ FASE 2 — Meta Ecosystem CONCLUÍDO (Feb 18, 2026)
+- ✅ Meta OAuth base (Graph API v21.0, long-lived tokens, admin config + user connect)
+- ✅ Instagram Publisher (posts foto + Reels via image/video_url público)
+- ✅ Instagram Comment Responder (DM Rules CRUD — runtime worker deferido)
+- ✅ WhatsApp Cloud API (send mensagem via phone_number_id)
+- ✅ Facebook Pages posts (message + link)
+- ✅ Social Unified agora publica em Facebook automaticamente
+- 🔴 DM/Comment Auto-Responder runtime (precisa webhooks Meta)
 
 ---
 
@@ -134,14 +135,15 @@ Status: Feb 2026 · Deploy em produção na VPS `mordomo.virtual.grupomafort.com
 - ✅ Dockerfile backend com Playwright + deps do Chromium
 - ✅ Frontend: painel "Fluxos de Trabalho" com editor visual + histórico
 - ✅ Testing agent: 29/29 backend PASS + frontend 100%
-- 🔴 System Watchdog (reiniciar containers com falha) — deferido
+- ✅ System Watchdog (Feb 18, 2026) — monitora Mongo/Ollama/Disco/RAM, gera alerts em `system_alerts`, UI aba "Alertas" no Admin
 
 ---
 
-### 🚀 FASE 6 — Polimento & Segurança 💠 P2 (1 sessão)
-- 🔴 Safe Self-Modification (UI pra ajustar voz/configs sem mexer no core)
-- 🔴 Voice Profile Manager (seletor de voz M/F, velocidade, tom na UI)
-- 🔴 Messaging Hub unificado (Telegram + WhatsApp + Instagram DM numa só inbox)
+### ✅ FASE 6 — Polimento & Segurança CONCLUÍDO PARCIAL (Feb 18, 2026)
+- ✅ Voice Profile Manager — 4 vozes pt_BR (Faber, Edresson, Cadu, Jeff), slider de velocidade 0.5x-2x, botão testar
+- ✅ Rebranding Kaelum.AI + Dark/Light theme toggle (persistido)
+- 🔴 Safe Self-Modification (deferido)
+- 🔴 Messaging Hub unificado Telegram+WhatsApp+IG DM (deferido)
 
 ---
 

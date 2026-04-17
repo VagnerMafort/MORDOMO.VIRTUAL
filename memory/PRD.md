@@ -93,6 +93,22 @@ Portuguese (pt-BR) — SEMPRE responder em português.
 - Frontend: modal "Publicar em Redes" com status por rede
 - 🟡 TikTok/Instagram/Facebook/WhatsApp como placeholders — depende de FASE 2 (Meta) e TikTok for Developers
 
+### FASE 2 — Meta Ecosystem (Feb 18, 2026) ✅
+- Meta OAuth v21.0 (admin config + user connect, long-lived 60d, Fernet encryption)
+- 3 skills novas: `[SKILL:instagram]`, `[SKILL:facebook]`, `[SKILL:whatsapp]`
+- REST: `/api/meta/instagram/publish`, `/meta/facebook/post`, `/meta/whatsapp/send`, `/meta/dm-rules` CRUD
+- Social Unified agora publica em Facebook automaticamente
+- Frontend: card Meta em Minhas Integrações (Facebook blue button) + aba config admin
+- 27 skills total no catálogo
+
+### FASE 6 — Voice Profile + Watchdog (Feb 18, 2026) ✅
+- 4 vozes Piper pt_BR (faber/edresson/cadu/jeff)
+- `/api/voice/voices` + `/speak?voice=X&speed=1.5`
+- Settings salva `voice_profile` e `voice_speed` por usuário
+- VoiceProfileSelector no SettingsPanel com dropdown + slider + botão testar
+- System Watchdog monitora Mongo/Ollama/Disk/RAM a cada 60s → `system_alerts`
+- Aba "Alertas" nova no AdminPanel
+
 ## DB Schema
 - `users` (+allowed_modules, blocked, quota, login_count, last_login)
 - `settings`, `conversations`, `messages`
