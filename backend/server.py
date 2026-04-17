@@ -158,7 +158,7 @@ async def register(body: RegisterInput):
         "password_hash": hash_password(body.password),
         "name": body.name.strip(),
         "role": "user",
-        "allowed_modules": ["chat", "handsfree", "mentorship", "telegram", "agents", "skills", "monitor", "workflows"],
+        "allowed_modules": ["chat", "handsfree", "mentorship", "telegram", "agents", "skills", "monitor", "workflows", "social"],
         "blocked": False,
         "quota": {},
         "login_count": 0,
@@ -327,6 +327,7 @@ AVAILABLE_SKILLS = [
     {"id": "calendar", "name": "Google Calendar", "description": "Listar e criar eventos na agenda", "icon": "Calendar"},
     {"id": "youtube", "name": "YouTube", "description": "Buscar videos, listar seu canal e ler comentarios", "icon": "Youtube"},
     {"id": "workflow", "name": "Fluxos de Trabalho", "description": "Executar fluxos salvos (encadeia varias skills)", "icon": "Workflow"},
+    {"id": "social_publish", "name": "Publicar em Redes Sociais", "description": "Publica video/midia em multiplas redes de uma vez", "icon": "Share2"},
 ]
 
 import subprocess, shutil
@@ -381,6 +382,10 @@ async def execute_skill(skill_id: str, args: dict, user_id: str = None) -> str:
         elif skill_id == "workflow":
             import workflows as wf_mod
             return await wf_mod.execute_workflow_skill(args, user_id)
+
+        elif skill_id == "social_publish":
+            import social_publisher as sp
+            return await sp.execute_social_publish(args, user_id)
 
         elif skill_id == "web_scraper":
             url = args.get("url", "")
@@ -841,6 +846,9 @@ SYSTEM_PROMPT = """Voce e o NovaClaw, um mordomo virtual AI avancado. Voce execu
 [SKILL:workflow] {"name":"rotina_matinal"}
 - Executa um fluxo salvo pelo usuario (serie de passos pre-configurados)
 
+[SKILL:social_publish] {"title":"Meu video","description":"...","media_url":"https://...","networks":["youtube"]}
+- Publica um video/midia em varias redes de uma vez (YouTube ja funciona; Insta/TikTok/WhatsApp em breve)
+
 ## REGRAS:
 - Quando o usuario pedir para executar, rodar, ou criar algo, USE A SKILL APROPRIADA
 - Quando pedir para analisar codigo, analise diretamente sem executar
@@ -1273,6 +1281,11 @@ app.include_router(google_skills.router)
 import workflows as workflows_mod
 workflows_mod.init(db, get_current_user, execute_skill)
 app.include_router(workflows_mod.router)
+
+# Social Unified Publisher (FASE 3)
+import social_publisher
+social_publisher.init(db, get_current_user, google_oauth.get_google_credentials)
+app.include_router(social_publisher.router)
 
 # Smart LLM
 import smart_llm

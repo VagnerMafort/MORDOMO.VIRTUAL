@@ -12,6 +12,7 @@ import MonitorPanel from '@/components/MonitorPanel';
 import AdminPanel from '@/components/AdminPanel';
 import IntegrationsPanel from '@/components/IntegrationsPanel';
 import WorkflowsPanel from '@/components/WorkflowsPanel';
+import SocialPublisher from '@/components/SocialPublisher';
 import HandsFreeMode from '@/components/HandsFreeMode';
 import WakeWordListener from '@/components/WakeWordListener';
 import { Menu, Headphones } from 'lucide-react';
@@ -33,6 +34,7 @@ export default function ChatPage() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [showIntegrations, setShowIntegrations] = useState(false);
   const [showWorkflows, setShowWorkflows] = useState(false);
+  const [showSocial, setShowSocial] = useState(false);
   const [agentName, setAgentName] = useState('Mordomo Virtual');
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
   const [hasAgencyAccess, setHasAgencyAccess] = useState(false);
@@ -158,6 +160,7 @@ export default function ChatPage() {
           onOpenAdmin={user?.role === 'admin' ? () => { setShowAdmin(true); setSidebarOpen(false); } : null}
           onOpenIntegrations={() => { setShowIntegrations(true); setSidebarOpen(false); }}
           onOpenWorkflows={() => { setShowWorkflows(true); setSidebarOpen(false); }}
+          onOpenSocial={() => { setShowSocial(true); setSidebarOpen(false); }}
         />
       </div>
 
@@ -211,6 +214,7 @@ export default function ChatPage() {
       {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
       {showIntegrations && <IntegrationsPanel onClose={() => setShowIntegrations(false)} />}
       {showWorkflows && <WorkflowsPanel onClose={() => setShowWorkflows(false)} />}
+      {showSocial && <SocialPublisher onClose={() => setShowSocial(false)} />}
       {/* Hands-free Mode */}
       {showHandsFree && <HandsFreeMode onClose={() => { setShowHandsFree(false); setWakeWordEnabled(prev => prev); fetchConversations(); }} agentName={agentName} />}
       {/* Wake Word Listener (runs in background) */}

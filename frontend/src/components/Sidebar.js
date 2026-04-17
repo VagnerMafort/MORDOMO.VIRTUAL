@@ -1,8 +1,8 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Settings, Cpu, Trash2, MessageSquare, LogOut, Zap, Pencil, Check, X, Bot, Building2, GraduationCap, Activity, Shield, Plug, Workflow } from 'lucide-react';
+import { Plus, Settings, Cpu, Trash2, MessageSquare, LogOut, Zap, Pencil, Check, X, Bot, Building2, GraduationCap, Activity, Shield, Plug, Workflow, Share2 } from 'lucide-react';
 import { useState } from 'react';
 
-export default function Sidebar({ conversations, activeConvId, onSelect, onCreate, onDelete, onRename, onOpenSettings, onOpenSkills, onOpenAgents, onOpenAgency, onOpenMentorship, onOpenMonitor, onOpenAdmin, onOpenIntegrations, onOpenWorkflows, agentName, allowedModules = [] }) {
+export default function Sidebar({ conversations, activeConvId, onSelect, onCreate, onDelete, onRename, onOpenSettings, onOpenSkills, onOpenAgents, onOpenAgency, onOpenMentorship, onOpenMonitor, onOpenAdmin, onOpenIntegrations, onOpenWorkflows, onOpenSocial, agentName, allowedModules = [] }) {
   const { user, logout } = useAuth();
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -201,6 +201,18 @@ export default function Sidebar({ conversations, activeConvId, onSelect, onCreat
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
           >
             <Workflow className="w-4 h-4" /> Fluxos de Trabalho
+          </button>
+        )}
+        {canSee('social') && onOpenSocial && (
+          <button
+            data-testid="open-social-btn"
+            onClick={onOpenSocial}
+            className="w-full py-2 px-3 text-xs font-medium flex items-center gap-2 transition-colors"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+          >
+            <Share2 className="w-4 h-4" /> Publicar em Redes
           </button>
         )}
         {user?.role === 'admin' && onOpenAdmin && (

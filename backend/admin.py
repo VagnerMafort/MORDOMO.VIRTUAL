@@ -48,7 +48,7 @@ AVAILABLE_MODULES = [
     {"key": "automation", "name": "Automação Web", "description": "Playwright / scraping avançado"},
 ]
 
-DEFAULT_USER_MODULES = ["chat", "handsfree", "mentorship", "telegram", "agents", "skills", "monitor", "workflows"]
+DEFAULT_USER_MODULES = ["chat", "handsfree", "mentorship", "telegram", "agents", "skills", "monitor", "workflows", "social"]
 ADMIN_ONLY_MODULES = ["admin"]
 
 # ─── Models ───────────────────────────────────────────────────────────────────
