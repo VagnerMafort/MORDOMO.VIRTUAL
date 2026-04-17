@@ -1,165 +1,93 @@
-# NovaClaw - AI Agent PWA (OpenClaw-like)
+# Mordomo Virtual - PRD
 
 ## Original Problem Statement
-Build an AI agent application similar to OpenClaw - a personal virtual butler/assistant that executes online tasks. Requirements: ChatGPT-like interface, PWA responsive for mobile, multi-user support, conversation management, hands-free voice mode (STT + TTS), agent skills system, Portuguese BR interface. Connect to local LLM via Ollama (for VPS with 48GB RAM, no GPU).
+Build a complete AI agent (OpenClaw-style) named "Mordomo Virtual" to run on a 48GB no-GPU VPS. Requirements: PWA responsive, multi-user, streaming chat, Telegram integration, code/scraping execution, Automated Marketing Agency (rules engine, dashboard, approval), Mentorship Creator (visual editor and PDF/DOCX export), dual LLM model system (Ollama 7B/32B with Emergent fallback), system performance monitoring panel and voice activation (hands-free).
+
+## User Language
+Portuguese (pt-BR) — ALWAYS respond in Portuguese.
+
+## Deployment Status (Feb 17, 2026)
+✅ **DEPLOYED TO PRODUCTION VPS**
+- Domain: https://mordomo.virtual.grupomafort.com
+- VPS: Ubuntu 48GB (vmi3061018)
+- SSL: Let's Encrypt (valid until 2026-07-16, auto-renewal via certbot container)
+- Code: https://github.com/VagnerMafort/MORDOMO.VIRTUAL
+- Admin: ministerioprvagner@gmail.com / DAx4OwaqmVubkHtn
+- Running: 6 Docker containers (mongodb, ollama, backend, frontend, nginx, certbot)
+- Models: qwen2.5:7b + qwen2.5:32b (Ollama local, ~24GB)
+- **100% INDEPENDENT** - No Emergent/OpenAI/Anthropic fallback. Zero API cost.
 
 ## Architecture
-- **Backend**: FastAPI + MongoDB (Motor async driver)
-- **Frontend**: React PWA with Tailwind CSS
-- **Auth**: JWT Bearer token (localStorage)
-- **LLM**: Ollama API (primary) + Emergent LLM key fallback (gpt-4o-mini)
-- **Voice**: Web Speech API (browser native, free)
-- **Database**: MongoDB (novaclaw_db)
+```
+/app/
+├── backend/           FastAPI + MongoDB (Motor)
+│   ├── server.py      Main (1300+ lines)
+│   ├── agency.py      Marketing Agency routes
+│   ├── mentorship.py  Mentorship + PDF/DOCX export
+│   ├── rules_engine.py Cron evaluation loop
+│   ├── smart_llm.py   Dual LLM logic + cache
+│   └── Dockerfile     Python 3.11 + Debian Trixie deps
+├── frontend/          React PWA
+│   └── Dockerfile     Node 20 + nginx:alpine
+├── docker-compose.yml  6 services
+├── nginx.conf          HTTP→HTTPS + reverse proxy
+└── deploy.sh           Auto-install Docker+SSL+seed
+```
 
-## User Personas
-- **Admin**: Full access to all features, manages system settings
-- **User**: Chat with AI, manage own conversations, configure personal settings
+## Key Fixes Done During Deploy (Feb 17, 2026)
+1. Removed `backend/tests/` folder (contained hardcoded test credentials triggering GitHub SECRETS_DETECTED)
+2. Removed default admin email/password hardcoded in server.py (now env-only)
+3. Removed `emergentintegrations` dependency completely (user requested zero-cost independence)
+4. Fixed `backend/Dockerfile`: `libgdk-pixbuf2.0-0` → `libgdk-pixbuf-2.0-0` (Debian Trixie)
+5. Fixed `frontend/Dockerfile`: Node 18 → Node 20 (required by react-router-dom@7)
+6. Fixed `frontend/Dockerfile`: removed `yarn.lock` requirement (not in repo)
+7. Fixed `deploy.sh` nginx-temp.conf race condition bug
+8. Promoted `ministerioprvagner@gmail.com` to admin in preview DB
 
-## Core Requirements (Static)
-- [x] Multi-user authentication (register/login/logout)
-- [x] ChatGPT-like chat interface with sidebar
-- [x] Conversation management (create/rename/delete)
-- [x] Message streaming via SSE
-- [x] LLM integration (Ollama + fallback)
-- [x] Agent skills system (10 skills)
-- [x] Settings panel (Ollama URL, model, TTS)
-- [x] Voice input (Web Speech API STT)
-- [x] TTS auto-read responses toggle
-- [x] PWA manifest + service worker + icons
-- [x] Portuguese BR interface
-- [x] Dark theme (Swiss high-contrast)
-- [x] Credentials/API keys management panel
-- [x] PWA install instructions (Android/iOS/Desktop)
+## Completed Features
+- PWA configuration (manifest, SW, icons)
+- JWT Auth + CORS + multi-user
+- SSE Chat streaming (pure Ollama, no fallback)
+- Telegram integration per-user with agent personas
+- Hands-free voice mode with wake word ("Hey [agent name]")
+- Marketing Agency module (products, campaigns, rules, approvals)
+- Mentorship Generator (visual editor + PDF/DOCX export)
+- Smart dual-LLM system (7B fast + 32B smart)
+- Background task worker + response cache
+- System monitoring dashboard
+- 13+ skills (code exec, scraping, files, calc, API calls)
 
-## What's Been Implemented
+## API Endpoints
+- `/api/health` — health check
+- `/api/auth/*` — register, login, logout, me, refresh
+- `/api/chat/message` — SSE streaming
+- `/api/telegram/connect`, `/api/telegram/webhook/{user_id}`
+- `/api/agency/products`, `/api/agency/campaigns`, `/api/agency/rules`, `/api/agency/dashboard`
+- `/api/mentorship/generate`, `/api/mentorship/{id}/export/{format}`
+- `/api/system/memory-stats`, `/api/system/task/{task_id}`
 
-### 2026-04-16 - Iteration 1 (MVP)
-- JWT auth (register, login, logout, me, refresh, brute force protection)
-- Conversations CRUD with per-user isolation
-- Messages with SSE streaming
-- 10 agent skills
-- Settings per-user (Ollama URL, model, TTS config)
-- ChatGPT-like layout (sidebar + chat area)
-- Voice input mode (Web Speech API STT)
-- Responsive mobile layout (hamburger menu)
+## DB Schema
+- `users`, `settings`, `conversations`, `messages`
+- `telegram_connections`
+- `products`, `campaigns`, `rules`, `approvals`, `agency_access`, `execution_log`
+- `mentorships`, `knowledge_base`
+- `response_cache`, `conversation_summaries`, `background_tasks`
 
-### 2026-04-16 - Iteration 2 (PWA + Credentials)
-- Credentials management panel (CRUD) - store Telegram tokens, API keys, SMTP, etc.
-- Full PWA support: manifest.json, service worker (sw.js), app icons (192/512), apple-touch-icon
-- PWA install instructions (Android, iPhone, Desktop)
-- TTS auto-read toggle on chat header
-- Safe-area padding for PWA standalone mode
-- Deploy guide for VPS with Docker/Ollama
+## P0 Next Actions (Optional, post-deploy)
+- User tests all features end-to-end in production
+- Setup first Telegram bot + first mentorship + first product
 
-### 2026-04-16 - Iteration 3 (Telegram + UX)
-- Telegram bot integration per user (connect/disconnect/webhook)
-- Each user can connect their own Telegram bot via @BotFather token
-- Webhook receives Telegram messages and responds via same LLM pipeline
-- Back buttons added to Settings and Skills modals
-- Settings panel now has 4 tabs: Geral, Telegram, Credenciais, Instalar
+## P1 Backlog (Future)
+- Meta Ads / Google Ads real API integration in Agency module
+- Refactor server.py (1300+ lines) into smaller routers
+- Add Prometheus/Grafana for deeper monitoring
 
-### 2026-04-16 - Iteration 4 (Skills Avançados + Agentes)
-- 7 skills avançados funcionais: code_executor (Python/JS/Bash), code_generator, web_scraper (CSS selectors), url_summarizer, file_manager (CRUD), notes_tasks, api_caller (GET/POST/PUT/DELETE)
-- Sistema de Agentes: 4 templates prontos (Dev Expert, Pesquisador Web, Analista de Dados, Automatizador) + criação de agentes personalizados
-- Conversas vinculadas a agentes usam system prompt específico do agente
-- Notes e Tasks API (CRUD completo)
-- 13 skills totais no dashboard (10 disponíveis + 3 requerem VPS)
+## 3rd Party Integrations
+- ✅ Ollama (local, user-hosted) — PRIMARY LLM
+- ✅ Telegram Bot API — user provides their own bot token per account
+- ❌ Emergent LLM Key — REMOVED at user request (zero cost)
+- ❌ OpenAI/Anthropic — NOT USED
 
-### 2026-04-16 - Iteration 5 (Hands-Free + Personalidade)
-- Modo Mãos Livres completo: tela fullscreen, reconhecimento de voz contínuo, envio automático, TTS auto-leitura, loop de conversa
-- Personalização do agente principal: campos de nome e personalidade nas configurações
-- Botão headphones no desktop (FAB) e mobile (header)
-- Conversas de voz com prefixo [Voz] no título
-
-### 2026-04-16 - Iteration 6 (Wake Word Activation)
-- Ativação por voz "Hey {nome do agente}" - escuta passiva contínua
-- Suporte a variações: "hey", "ei", "oi", "hei" + nome do agente
-- Indicador visual no canto inferior esquerdo (bolinha verde pulsando)
-- Terminal info box explicativo quando ativado
-- Configuração wake_word_enabled persistida no backend
-
-### 2026-04-16 - Iteration 7 (Mordomo Virtual + Agência de Marketing + Visual Futurista)
-- Renomeado para "Mordomo Virtual"
-- 24 agentes de marketing da arquitetura JAMES AGENCY implementados (ORION, DASH, MIDAS, NOVA, HUNTER, etc.)
-- 8 squads: Core & Governance, Data & Diagnostics, Traffic, Funnel & Sales, Creative, Pages & Conversion, Research & Product, Reporting & Finance
-- Hands-free redesenhado: fundo azul escuro (#020810), espectro de luz circular com 3 anéis que giram e pulsam com a voz via Web Audio API
-- AgentManager com busca e organização por squads
-
-### 2026-04-16 - Iteration 8 (Marketing Agency Panel)
-- Painel da Agência ({nome} Agency) com controle de acesso (admin-only + concessão manual)
-- Sistema de Produtos (unidade central): CRUD com métricas (CTR, CPC, CPA, ROAS, conversões, gasto, receita)
-- Campanhas vinculadas a produtos com métricas por plataforma
-- Motor de Regras: condições (métrica + operador + valor) → ações (pausar, escalar, alertar, relatório) + aprovação humana opcional
-- Fila de Aprovação: pendente/aprovado/rejeitado com log de auditoria
-- Relatórios: nível agência e nível produto
-- Controle de Acesso: admin concede/revoga acesso por e-mail
-- Módulo separado (agency.py) para manutenibilidade
-
-### 2026-04-16 - Iteration 9 (Cron + Dashboard + Integrations + Inter-Agent)
-- Renomeado NovaClaw → "Mordomo Virtual" em todo o sistema (nome dinâmico do usuário substitui)
-- Cron job: Rules Engine roda a cada 60s avaliando regras ativas automaticamente
-- Dashboard com Recharts: gráficos de barras (gasto/receita por produto), pizza (distribuição), cards de métricas
-- Integração de plataformas pelo painel: Meta Ads, Google Ads, TikTok (cada usuário conecta suas próprias contas)
-- Comunicação entre agentes: sistema de mensagens inter-agent (from_agent → to_agent, payload, status)
-- Histórico de métricas para gráficos temporais
-- Sincronização de métricas das plataformas conectadas
-
-### 2026-04-16 - Iteration 10 (Dashboard Temporal + Execução Real)
-- Dashboard temporal: gráficos AreaChart (Gasto vs Receita com gradientes) e LineChart (ROAS, CPA, CTR) ao longo do tempo
-- Seletor de produto no timeline para alternar entre produtos
-- Execução real de ações aprovadas: quando aprovação é aceita, executa na plataforma conectada (Meta Ads API, Google Ads, TikTok)
-- Log de execuções com status (sucesso/falha), detalhes, resultado da plataforma
-- Auto-record de métricas: cron grava snapshots a cada 5 minutos para alimentar os gráficos
-- PUT /products/{id}/metrics auto-cria snapshot no histórico
-- 5 abas no Dashboard: Visão Geral, Timeline, Execuções, Integrações, Agentes
-
-### 2026-04-16 - Iteration 11 (Criador de Mentorias)
-- Sistema completo de criação de mentorias via IA
-- Upload de conhecimento (txt, md, csv) + campo de texto livre
-- Geração automática: nome, promessa, módulos (6+), aulas (4+/módulo), exercícios, bônus, metodologia, FAQ, copy de vendas, precificação
-- CRUD de mentorias e base de conhecimento
-- Agentes MOIRA e NOVA atualizados com capabilities de mentoria
-- Painel dedicado com abas "Criar Mentoria" e "Mentorias"
-- Botão "Criar Mentoria" no sidebar
-
-### 2026-04-16 - Iteration 12 (Editor Visual + Export PDF/DOCX)
-- Editor visual de módulos: cards expansíveis com módulos e aulas, edição inline, adicionar/remover módulos e aulas
-- Parse automático: conteúdo gerado pela IA convertido em módulos estruturados (6+ módulos, 4-6 aulas cada)
-- Export PDF: WeasyPrint gera PDF profissional A4 com design, borda amarela em módulos, capa
-- Export DOCX: python-docx gera Word com headings, bullets, quebra de página por módulo
-- Botões PDF/DOCX no editor para download direto
-
-### 2026-04-16 - Iteration 13 (Independência Total + Performance + Memória)
-- **Modelo Dual**: 7B rápido (chat ~3-5s) + 32B inteligente (complexo ~15-30s), detecção automática de complexidade
-- **Cache de respostas**: Perguntas similares retornam do cache em milissegundos (SHA256 hash, TTL 1h simples / 24h complexo)
-- **Fila de background**: Tarefas pesadas (mentorias, relatórios) processadas em background
-- **Memória inteligente**: Resumo a cada 5 mensagens, busca de tópicos antigos por keywords, busca cross-conversation
-- **Docker completo**: docker-compose.yml (MongoDB + Ollama + Backend + Frontend), Dockerfiles, deploy.sh, nginx.conf
-- **100% independente**: Roda na VPS sem depender de nenhuma plataforma externa
-
-## Prioritized Backlog
-
-### P0 (Critical)
-- None (core features complete)
-
-### P1 (Important)
-- Telegram bot integration (use stored credentials)
-- Conversation search in sidebar
-- Message copy/delete
-- Export conversations
-
-### P2 (Nice to have)
-- WhatsApp integration
-- Multi-model support dropdown
-- Browser automation execution (Playwright)
-- Cron job scheduler UI
-- Email integration (IMAP/SMTP)
-- File upload/attachment support
-- User admin panel
-
-## Next Tasks
-1. Integrate Telegram bot using stored credentials
-2. Add conversation search in sidebar
-3. Create Dockerfile for easy VPS deployment
-4. Implement actual browser automation skill with Playwright
-5. Add message actions (copy, delete, regenerate)
+## Testing Status
+- 13 iterations of backend testing agent (100% pass)
+- Production deploy verified by user on Feb 17, 2026
