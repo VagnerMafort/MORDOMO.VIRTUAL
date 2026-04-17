@@ -1154,6 +1154,10 @@ async def llm_generate_for_mentorship(prompt: str, user_id: str) -> str:
 mentorship.init(db, get_current_user, llm_generate_for_mentorship)
 app.include_router(mentorship.router)
 
+# Voice pipeline (STT Whisper + TTS Piper - 100% local)
+import voice
+app.include_router(voice.router)
+
 # Smart LLM
 import smart_llm
 smart_llm.init(db, OLLAMA_URL, "qwen2.5:7b", OLLAMA_MODEL)

@@ -25,6 +25,8 @@ services:
       dockerfile: Dockerfile
     container_name: mordomo-backend
     restart: always
+    volumes:
+      - voice_models:/app/voice_models
     environment:
       MONGO_URL: "mongodb://mongodb:27017"
       DB_NAME: "mordomo_db"
@@ -34,6 +36,9 @@ services:
       OLLAMA_URL: "http://ollama:11434"
       OLLAMA_MODEL: "${OLLAMA_MODEL:-qwen2.5:32b}"
       BACKEND_URL: "https://mordomo.virtual.grupomafort.com"
+      WHISPER_MODEL: "${WHISPER_MODEL:-large-v3-turbo}"
+      WHISPER_COMPUTE: "${WHISPER_COMPUTE:-int8}"
+      PIPER_VOICE: "${PIPER_VOICE:-pt_BR-faber-medium}"
     depends_on:
       - mongodb
       - ollama
@@ -85,6 +90,7 @@ volumes:
   ollama_data:
   certbot_conf:
   certbot_www:
+  voice_models:
 
 networks:
   mordomo:
