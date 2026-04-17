@@ -74,20 +74,22 @@ Status: Feb 2026 · Deploy em produção na VPS `mordomo.virtual.grupomafort.com
 
 ## 🔴 A CONSTRUIR — FASES PROPOSTAS
 
-### 🚀 FASE 1 — Google Ecosystem ⭐ P0 (1-2 sessões)
-**Uma autorização cobre tudo:**
-- 🔴 Google OAuth base (login + refresh token + multi-conta)
-- 🔴 Google Drive Manager (bloco 7)
-- 🔴 File Organizer (bloco 8, baseado em Drive)
-- 🔴 Gmail Manager (bloco 3)
-- 🔴 Email Auto-Responder
-- 🔴 Email Attachment Sender
-- 🔴 Google Sheets Creator (bloco 4)
-- 🔴 Spreadsheet Analyzer
-- 🔴 Google Calendar (extensão)
-- 🔴 **YouTube API** (upload, metrics, comments)
+### 🚀 FASE 1 — Google Ecosystem ✅ CONCLUÍDO (Feb 18, 2026)
+**Uma autorização cobre tudo (OAuth2 + refresh_token + auto-refresh):**
+- ✅ Google OAuth2 base (login + refresh token + token encryption Fernet)
+- ✅ Admin configura Client ID/Secret via Painel Admin → aba Integrações (não precisa de .env)
+- ✅ Usuário conecta conta Google via botão "Minhas Integrações"
+- ✅ Gmail (list, read, send via API REST + chat skill)
+- ✅ Google Drive (list, create_folder, upload, rename, trash)
+- ✅ Google Sheets (create com dados iniciais, read range, write/append)
+- ✅ Google Calendar (list próximos eventos, create evento com attendees)
+- ✅ YouTube (my_videos + channel stats, search, comments, upload)
+- ✅ Integração no chat: `[SKILL:gmail]` `[SKILL:drive]` `[SKILL:sheets]` `[SKILL:calendar]` `[SKILL:youtube]`
+- ✅ Backend: 19 skills registradas (14 antigas + 5 Google)
+- 🔴 File Organizer inteligente (bloco 8) — próxima iteração
+- 🔴 Email Auto-Responder com regras — próxima iteração
 
-**UX:** Aba "Integrações" → conectar múltiplas contas Google → dar apelidos.
+**Pós-deploy VPS**: usuário cola Client ID/Secret no Painel Admin → conecta sua conta → todas 5 APIs operacionais.
 
 ---
 

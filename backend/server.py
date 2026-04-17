@@ -321,6 +321,11 @@ AVAILABLE_SKILLS = [
     {"id": "browser_automation", "name": "Automacao Web", "description": "Automatizar acoes no navegador (VPS)", "icon": "Monitor"},
     {"id": "cron_jobs", "name": "Tarefas Agendadas", "description": "Agendar tarefas recorrentes (VPS)", "icon": "Timer"},
     {"id": "email_manager", "name": "Gerenciador de E-mail", "description": "Enviar e ler e-mails (VPS)", "icon": "Mail"},
+    {"id": "gmail", "name": "Gmail", "description": "Ler e enviar emails pela sua conta Google", "icon": "Mail"},
+    {"id": "drive", "name": "Google Drive", "description": "Listar, criar pastas e fazer upload no Drive", "icon": "HardDrive"},
+    {"id": "sheets", "name": "Google Sheets", "description": "Criar e ler planilhas", "icon": "FileSpreadsheet"},
+    {"id": "calendar", "name": "Google Calendar", "description": "Listar e criar eventos na agenda", "icon": "Calendar"},
+    {"id": "youtube", "name": "YouTube", "description": "Buscar videos, listar seu canal e ler comentarios", "icon": "Youtube"},
 ]
 
 import subprocess, shutil
@@ -360,6 +365,13 @@ async def execute_skill(skill_id: str, args: dict, user_id: str = None) -> str:
                 return "Erro: informe 'query' para buscar"
             results = await ws_mod.web_search(query, max_results=5)
             return ws_mod.format_results_for_llm(results, query)
+
+        elif skill_id in ("gmail", "drive", "sheets", "calendar", "youtube"):
+            import google_skills as gs
+            handler = {"gmail": gs.execute_gmail, "drive": gs.execute_drive,
+                       "sheets": gs.execute_sheets, "calendar": gs.execute_calendar,
+                       "youtube": gs.execute_youtube}[skill_id]
+            return await handler(args, user_id)
 
         elif skill_id == "web_scraper":
             url = args.get("url", "")
@@ -799,6 +811,21 @@ SYSTEM_PROMPT = """Voce e o NovaClaw, um mordomo virtual AI avancado. Voce execu
 [SKILL:datetime_info] {}
 - Data e hora atual
 
+[SKILL:gmail] {"action":"list","query":"is:unread","max":5}
+- Acoes: "list" (query gmail opcional), "send" (to, subject, body)
+
+[SKILL:drive] {"action":"list","query":"nome parcial"}
+- Acoes: "list" (query opcional), "create_folder" (name)
+
+[SKILL:sheets] {"action":"create","title":"Minha Planilha","values":[["Col A","Col B"],["1","2"]]}
+- Acoes: "create" (title + values opcionais), "read" (spreadsheet_id, range)
+
+[SKILL:calendar] {"action":"list","days_ahead":7}
+- Acoes: "list" (days_ahead), "create" (summary, start_iso, end_iso, description)
+
+[SKILL:youtube] {"action":"my_videos","max":10}
+- Acoes: "my_videos", "search" (query), "comments" (video_id)
+
 ## REGRAS:
 - Quando o usuario pedir para executar, rodar, ou criar algo, USE A SKILL APROPRIADA
 - Quando pedir para analisar codigo, analise diretamente sem executar
@@ -1221,6 +1248,11 @@ app.include_router(admin_mod.public_router)
 import google_oauth
 google_oauth.init(db, get_current_user, os.environ["JWT_SECRET"])
 app.include_router(google_oauth.router)
+
+# Google Skills (Gmail, Drive, Sheets, Calendar, YouTube)
+import google_skills
+google_skills.init(db, get_current_user, google_oauth.get_google_credentials)
+app.include_router(google_skills.router)
 
 # Smart LLM
 import smart_llm

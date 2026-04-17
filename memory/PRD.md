@@ -60,6 +60,18 @@ Portuguese (pt-BR) — SEMPRE responder em português.
 - **Dashboard Admin**: KPIs + RAM/Disk
 - **Frontend**: 7 abas (Dashboard, Usuários, Módulos, Uso, Logs, Sessões, Sistema)
 
+### FASE 1 — Google Ecosystem (Feb 18, 2026) ✅
+- **OAuth2**: admin configura Client ID/Secret no painel (Fernet encrypted), usuário conecta via botão
+- **Auto-refresh** de access_token, state JWT assinado, PKCE, `access_type=offline`
+- **5 skills** integradas no chat + endpoints REST:
+  - Gmail: list/read/send
+  - Drive: list/create_folder/upload/rename/trash
+  - Sheets: create (com dados)/read/write/append
+  - Calendar: list/create (+ attendees)
+  - YouTube: my_videos/search/comments/upload
+- **Frontend**: aba Integrações no AdminPanel + IntegrationsPanel para usuário
+- Callback handler detecta `?google=connected` e mostra toast
+
 ## DB Schema
 - `users` (+allowed_modules, blocked, quota, login_count, last_login)
 - `settings`, `conversations`, `messages`
