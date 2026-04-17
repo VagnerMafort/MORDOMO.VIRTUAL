@@ -158,7 +158,7 @@ async def register(body: RegisterInput):
         "password_hash": hash_password(body.password),
         "name": body.name.strip(),
         "role": "user",
-        "allowed_modules": ["chat", "handsfree", "mentorship", "telegram", "agents", "skills", "monitor"],
+        "allowed_modules": ["chat", "handsfree", "mentorship", "telegram", "agents", "skills", "monitor", "workflows"],
         "blocked": False,
         "quota": {},
         "login_count": 0,
@@ -326,6 +326,7 @@ AVAILABLE_SKILLS = [
     {"id": "sheets", "name": "Google Sheets", "description": "Criar e ler planilhas", "icon": "FileSpreadsheet"},
     {"id": "calendar", "name": "Google Calendar", "description": "Listar e criar eventos na agenda", "icon": "Calendar"},
     {"id": "youtube", "name": "YouTube", "description": "Buscar videos, listar seu canal e ler comentarios", "icon": "Youtube"},
+    {"id": "workflow", "name": "Fluxos de Trabalho", "description": "Executar fluxos salvos (encadeia varias skills)", "icon": "Workflow"},
 ]
 
 import subprocess, shutil
@@ -372,6 +373,14 @@ async def execute_skill(skill_id: str, args: dict, user_id: str = None) -> str:
                        "sheets": gs.execute_sheets, "calendar": gs.execute_calendar,
                        "youtube": gs.execute_youtube}[skill_id]
             return await handler(args, user_id)
+
+        elif skill_id == "browser_automation":
+            import web_automation as wa
+            return await wa.execute_browser_automation(args, user_id)
+
+        elif skill_id == "workflow":
+            import workflows as wf_mod
+            return await wf_mod.execute_workflow_skill(args, user_id)
 
         elif skill_id == "web_scraper":
             url = args.get("url", "")
@@ -826,6 +835,12 @@ SYSTEM_PROMPT = """Voce e o NovaClaw, um mordomo virtual AI avancado. Voce execu
 [SKILL:youtube] {"action":"my_videos","max":10}
 - Acoes: "my_videos", "search" (query), "comments" (video_id)
 
+[SKILL:browser_automation] {"url":"https://...", "actions":[{"type":"fill","selector":"#q","value":"x"},{"type":"click","selector":"#go"},{"type":"extract","selector":".result","as":"text","var":"resultado"}]}
+- Automacao web real via Playwright. Types: goto, fill, click, press, wait, wait_for, extract, screenshot, scroll
+
+[SKILL:workflow] {"name":"rotina_matinal"}
+- Executa um fluxo salvo pelo usuario (serie de passos pre-configurados)
+
 ## REGRAS:
 - Quando o usuario pedir para executar, rodar, ou criar algo, USE A SKILL APROPRIADA
 - Quando pedir para analisar codigo, analise diretamente sem executar
@@ -1254,6 +1269,11 @@ import google_skills
 google_skills.init(db, get_current_user, google_oauth.get_google_credentials)
 app.include_router(google_skills.router)
 
+# Workflow Engine (FASE 5)
+import workflows as workflows_mod
+workflows_mod.init(db, get_current_user, execute_skill)
+app.include_router(workflows_mod.router)
+
 # Smart LLM
 import smart_llm
 smart_llm.init(db, OLLAMA_URL, "qwen2.5:7b", OLLAMA_MODEL)
@@ -1395,6 +1415,9 @@ async def startup():
     # Google OAuth (FASE 1)
     await db.oauth_config.create_index("provider", unique=True)
     await db.google_accounts.create_index("user_id", unique=True)
+    # Workflows (FASE 5)
+    await db.workflows.create_index([("user_id", 1), ("name", 1)])
+    await db.workflow_executions.create_index([("user_id", 1), ("started_at", -1)])
     # Start rules evaluation engine
     asyncio.create_task(rules_engine.rules_evaluation_loop())
     # Start background task worker
@@ -1432,7 +1455,7 @@ async def startup():
         {"email": admin_email},
         {"$set": {
             "role": "admin", "blocked": False,
-            "allowed_modules": ["chat", "handsfree", "mentorship", "agency", "telegram", "agents", "skills", "monitor", "admin", "drive", "email", "sheets", "social", "automation"]
+            "allowed_modules": ["chat", "handsfree", "mentorship", "agency", "telegram", "agents", "skills", "monitor", "workflows", "admin", "drive", "email", "sheets", "social", "automation"]
         }}
     )
     # Write test credentials

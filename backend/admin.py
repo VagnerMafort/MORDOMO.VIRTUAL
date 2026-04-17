@@ -38,6 +38,7 @@ AVAILABLE_MODULES = [
     {"key": "agents", "name": "Agentes Customizados", "description": "Gerenciar agentes próprios"},
     {"key": "skills", "name": "Habilidades (Skills)", "description": "Painel de skills ativas"},
     {"key": "monitor", "name": "Monitoramento", "description": "Painel do sistema"},
+    {"key": "workflows", "name": "Fluxos de Trabalho", "description": "Criar e executar fluxos automatizados"},
     {"key": "admin", "name": "Painel Admin", "description": "Administração geral (apenas admin)"},
     # Reservas para próximas fases:
     {"key": "drive", "name": "Google Drive", "description": "Organização de arquivos no Drive"},
@@ -47,7 +48,7 @@ AVAILABLE_MODULES = [
     {"key": "automation", "name": "Automação Web", "description": "Playwright / scraping avançado"},
 ]
 
-DEFAULT_USER_MODULES = ["chat", "handsfree", "mentorship", "telegram", "agents", "skills", "monitor"]
+DEFAULT_USER_MODULES = ["chat", "handsfree", "mentorship", "telegram", "agents", "skills", "monitor", "workflows"]
 ADMIN_ONLY_MODULES = ["admin"]
 
 # ─── Models ───────────────────────────────────────────────────────────────────
