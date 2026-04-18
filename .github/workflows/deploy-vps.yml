@@ -1,0 +1,56 @@
+name: Deploy Kaelum.AI to VPS
+
+# Dispara automaticamente quando faz push na main
+# (ou manualmente via "Run workflow" no GitHub Actions)
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false  # não cancela: deploy em andamento não pode ser interrompido
+
+jobs:
+  deploy:
+    name: Deploy to Hostinger VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Notify start
+        run: echo "🚀 Iniciando deploy na VPS ${{ secrets.VPS_HOST }}"
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            set -e
+            cd /opt/mordomo
+            echo "📥 git pull..."
+            git pull --rebase --autostash
+            echo "🐳 docker compose up -d --build..."
+            docker compose up -d --build
+            echo "⏳ aguardando 10s pros containers estabilizarem..."
+            sleep 10
+            echo "📊 status dos containers:"
+            docker compose ps
+            echo "❤️  health check:"
+            curl -fsS https://mordomo.virtual.grupomafort.com/api/auth/me || echo "API em warm-up (esperado 401)"
+            echo "✅ deploy concluído"
+
+      - name: Notify success
+        if: success()
+        run: echo "✅ Deploy finalizado com sucesso!"
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "❌ Deploy falhou — verifique os logs acima"
+          exit 1
