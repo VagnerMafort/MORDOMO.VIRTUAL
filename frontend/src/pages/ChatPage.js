@@ -19,7 +19,29 @@ import WakeWordListener from '@/components/WakeWordListener';
 import { Menu, Headphones } from 'lucide-react';
 import { toast } from 'sonner';
 
+// Hook: altura real da viewport visível (considera toolbars dinâmicas do iOS Safari)
+function useViewportHeight() {
+  useEffect(() => {
+    const setVH = () => {
+      const h = (window.visualViewport?.height ?? window.innerHeight);
+      document.documentElement.style.setProperty('--app-vh', `${h}px`);
+    };
+    setVH();
+    window.addEventListener('resize', setVH);
+    window.addEventListener('orientationchange', setVH);
+    window.visualViewport?.addEventListener('resize', setVH);
+    window.visualViewport?.addEventListener('scroll', setVH);
+    return () => {
+      window.removeEventListener('resize', setVH);
+      window.removeEventListener('orientationchange', setVH);
+      window.visualViewport?.removeEventListener('resize', setVH);
+      window.visualViewport?.removeEventListener('scroll', setVH);
+    };
+  }, []);
+}
+
 export default function ChatPage() {
+  useViewportHeight();
   const { api, user } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
@@ -144,7 +166,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div data-testid="chat-page" className="h-screen h-[100svh] flex overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+    <div data-testid="chat-page" className="flex overflow-hidden" style={{ background: 'var(--bg-base)', height: 'var(--app-vh, 100vh)' }}>
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
