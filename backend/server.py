@@ -333,6 +333,7 @@ AVAILABLE_SKILLS = [
     {"id": "instagram", "name": "Instagram", "description": "Publica no IG Business (foto/Reels)", "icon": "Instagram"},
     {"id": "facebook", "name": "Facebook Pages", "description": "Publica post em Facebook Page", "icon": "Facebook"},
     {"id": "whatsapp", "name": "WhatsApp Business", "description": "Envia mensagens via WhatsApp Cloud API", "icon": "MessageCircle"},
+    {"id": "james", "name": "JAMES Agency", "description": "Sistema autonomo de marketing: tick, report, anomalias (24 agentes)", "icon": "Brain"},
 ]
 
 import subprocess, shutil
@@ -403,6 +404,10 @@ async def execute_skill(skill_id: str, args: dict, user_id: str = None) -> str:
         elif skill_id == "whatsapp":
             import meta_skills as ms
             return await ms.execute_whatsapp(args, user_id)
+
+        elif skill_id == "james":
+            from james import api as james_api
+            return await james_api.execute_james_skill(args, user_id)
 
         elif skill_id == "web_scraper":
             url = args.get("url", "")
@@ -875,6 +880,11 @@ SYSTEM_PROMPT = """Voce e o NovaClaw, um mordomo virtual AI avancado. Voce execu
 [SKILL:whatsapp] {"action":"send","phone_number_id":"...","to":"5511...","text":"Ola!"}
 - Envia mensagem WhatsApp Business (to sem '+', formato E.164)
 
+[SKILL:james] {"action":"tick|report|anomalies", "product_id":"...", "level":"agency|product", "period_hours":24, "execute":false}
+- JAMES AGENCY: sistema autonomo com 24 agentes. "tick" roda um ciclo completo
+  (coleta->baseline->anomalias->priorizacao->orquestracao->plano). "report" gera relatorio executivo via ECHO.
+  "anomalias" lista desvios detectados. product_id obrigatorio para tick/anomalias.
+
 ## REGRAS:
 - Quando o usuario pedir para executar, rodar, ou criar algo, USE A SKILL APROPRIADA
 - Quando pedir para analisar codigo, analise diretamente sem executar
@@ -1327,6 +1337,12 @@ app.include_router(meta_skills.router)
 import tiktok_oauth
 tiktok_oauth.init(db, get_current_user, os.environ["JWT_SECRET"])
 app.include_router(tiktok_oauth.router)
+
+# JAMES AGENCY — Autonomous Marketing Intelligence (24 agentes · 14 camadas)
+from james import api as james_api, orchestrator as james_orchestrator
+james_orchestrator.init(db, OLLAMA_URL, OLLAMA_MODEL)
+james_api.init(db, get_current_user)
+app.include_router(james_api.router)
 
 # Smart LLM
 import smart_llm
