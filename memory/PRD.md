@@ -103,6 +103,34 @@ Portuguese (pt-BR) — SEMPRE responder em português.
 - Frontend: card TikTok em Minhas Integrações (rosa #ff0050) + aba config admin com redirect URI copiável
 - Mobile UI bug fix: `WakeWordListener` não sobrepõe mais o input em telas <lg; ChatPage adota `h-dvh`
 
+### JAMES AGENCY — Autonomous Marketing Intelligence (Apr 18, 2026) ✅
+Sistema autônomo completo conforme PDF "Agência de marketing automação (arquitetura)":
+- **24 agentes especializados** (`/app/backend/james/agents/registry.py`):
+  - SQUAD 1 Core & Governance: ORION (router), SENTINEL (risk), NERO (skills), ARCHIVIST (memory), EXEC (executor)
+  - SQUAD 2 Data & Diagnostics: DASH, TRACK, ATTRIB
+  - SQUAD 3 Traffic: MIDAS (budget/ROAS)
+  - SQUAD 4 Funnel & Sales: HUNTER, LNS, CLOSER
+  - SQUAD 5 Creative & Messaging: NOVA (copy/creative), MARA (brand)
+  - SQUAD 6 Pages & Conversion: LPX, DEX, OUBAS, REX
+  - SQUAD 7 Research & Product: ATLAS, MOIRA
+  - SQUAD 8 Reporting & Finance: EVAL, LEARNER, FINN, ECHO (narrative reports)
+- **14 camadas operacionais** (`/app/backend/james/layers.py`):
+  1. Sensors (ingest) · 2. Normalization · 3. Baseline (mean/std/p25/p50/p75 por 7 dias)
+  4. Anomalies (drop/spike/fatigue com thresholds por métrica)
+  5. Prioritization (sev_weight × metric_weight × log(delta))
+  6. Orchestration (ORION roteia por métrica)
+  7. Objective Governance (banned patterns, blast radius)
+  8. Guardrails (max_budget_change=40%, high_risk_flags)
+  9. Execution · 10. Verification · 11. Evaluation (before/after 1h)
+  12. Learning (LEARNER atualiza success_rate por skill/agent/product)
+  13. Memory (MongoDB) · 14. Reporting (ECHO gera narrativa com Ollama)
+- **Executores** (`/app/backend/james/executors.py`): pause_campaign, shift_budget, scale_campaign, rewrite_copy, pause_fatigued_creative, etc. (dry-run + pending_actions queue pra integração real com Meta/Google Ads)
+- **12 endpoints REST** (`/api/james/*`): agents, products, ingest, seed, tick, anomalies, plans, approve, run, reports/generate, learnings, evaluations
+- **Skill `[SKILL:james]`** no chat: actions tick/report/anomalies
+- **Frontend** `JamesPanel.js`: 6 abas (Produtos, 24 Agentes, Anomalias, Planos, Relatórios, Aprendizados) com criação de produto, seed demo, tick, tick+run, approve+execute de planos, geração de relatório ECHO
+- **Fallback sem Ollama**: cada agente tem lógica heurística quando LLM não disponível (garantia de operação no preview e resiliência na VPS)
+- **Testing agent 17/17**: 31/33 backend passes, 100% frontend passes, 0 bugs
+
 ### FASE 2 — Meta Ecosystem (Feb 18, 2026) ✅
 - Meta OAuth v21.0 (admin config + user connect, long-lived 60d, Fernet encryption)
 - 3 skills novas: `[SKILL:instagram]`, `[SKILL:facebook]`, `[SKILL:whatsapp]`
