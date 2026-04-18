@@ -902,7 +902,8 @@ def build_messages(history: list, user_msg: str, custom_prompt: str = None) -> l
     return messages
 
 async def stream_ollama(messages: list, ollama_url: str, model: str):
-    async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0)) as c:
+    # read=None: sem timeout de leitura (mentorias demoram). connect=10s para falhar rápido se offline.
+    async with httpx.AsyncClient(timeout=httpx.Timeout(None, connect=10.0, read=None)) as c:
         async with c.stream("POST", f"{ollama_url}/api/chat", json={"model": model, "messages": messages, "stream": True}) as r:
             async for line in r.aiter_lines():
                 if line:
@@ -1294,18 +1295,41 @@ rules_engine.init(db)
 import mentorship
 
 async def llm_generate_for_mentorship(prompt: str, user_id: str) -> str:
-    """Generate content via LLM for mentorship creation."""
+    """Generate content via LLM for mentorship creation.
+    Timeout de 5min e erro explícito se Ollama falhar (em vez de ficar pendurado)."""
+    import asyncio
     settings = await db.settings.find_one({"user_id": user_id})
     ollama_url = settings.get("ollama_url", OLLAMA_URL) if settings else OLLAMA_URL
     ollama_model = settings.get("ollama_model", OLLAMA_MODEL) if settings else OLLAMA_MODEL
-    messages = [{"role": "system", "content": "Voce e um especialista em criacao de mentorias e infoprodutos."}, {"role": "user", "content": prompt}]
-    try:
+    messages = [
+        {"role": "system", "content": "Voce e um especialista em criacao de mentorias e infoprodutos. Responda SEMPRE em portugues brasileiro, detalhado e estruturado."},
+        {"role": "user", "content": prompt},
+    ]
+
+    async def _collect():
         full = ""
         async for token in stream_ollama(messages, ollama_url, ollama_model):
             full += token
         return full
-    except Exception:
-        return await chat_emergent_fallback(messages)
+
+    try:
+        # Tenta streaming com timeout total de 5 minutos (mentoria é conteúdo longo)
+        return await asyncio.wait_for(_collect(), timeout=300.0)
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail=("Ollama demorou mais de 5min para gerar a mentoria. "
+                    "Verifique se o modelo está carregado (docker exec mordomo-ollama ollama list) "
+                    "ou use um modelo menor (ex: qwen2.5:7b em vez de 32b)."),
+        )
+    except httpx.ConnectError:
+        raise HTTPException(
+            status_code=503,
+            detail=("Ollama local não responde em {}. Verifique: "
+                    "docker compose ps ollama && docker compose logs ollama | tail").format(ollama_url),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar mentoria: {str(e)[:200]}")
 
 mentorship.init(db, get_current_user, llm_generate_for_mentorship)
 app.include_router(mentorship.router)
@@ -1357,9 +1381,12 @@ app.include_router(tiktok_oauth.router)
 
 # JAMES AGENCY — Autonomous Marketing Intelligence (24 agentes · 14 camadas)
 from james import api as james_api, orchestrator as james_orchestrator, autopilot as james_autopilot
+from james import campaign_launcher as james_campaign_launcher
 james_orchestrator.init(db, OLLAMA_URL, OLLAMA_MODEL)
 james_api.init(db, get_current_user)
+james_campaign_launcher.init(db, get_current_user)
 app.include_router(james_api.router)
+app.include_router(james_campaign_launcher.router)
 
 
 @app.on_event("startup")

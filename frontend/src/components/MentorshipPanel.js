@@ -5,6 +5,7 @@ import {
   BookOpen, Download, Eye, ChevronDown, ChevronUp, GraduationCap
 } from 'lucide-react';
 import MentorshipEditor from '@/components/MentorshipEditor';
+import { toast } from 'sonner';
 
 function formatContent(text) {
   if (!text) return '';
@@ -64,12 +65,18 @@ export default function MentorshipPanel({ onClose }) {
     if (!form.knowledge_text && knowledge.length === 0) return;
     setGenerating(true);
     try {
-      const { data } = await api.post('/mentorship/generate', form);
+      // axios timeout 6 min pra acomodar geração longa no Ollama
+      const { data } = await api.post('/mentorship/generate', form, { timeout: 6 * 60 * 1000 });
       setMentorships(prev => [data, ...prev]);
       setViewing(data);
       setTab('list');
       setForm({ title: '', knowledge_text: '', niche: '', target_audience: '', duration_weeks: 8 });
-    } catch (e) { console.error(e); }
+      toast.success('Mentoria gerada com sucesso');
+    } catch (e) {
+      const msg = e.response?.data?.detail || e.message || 'Erro desconhecido';
+      toast.error(`Erro ao gerar: ${msg}`);
+      console.error('Mentorship generation failed:', e);
+    }
     setGenerating(false);
   };
 
@@ -216,7 +223,7 @@ export default function MentorshipPanel({ onClose }) {
                 {generating ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Gerando mentoria completa... (pode levar 30-60 segundos)
+                    Gerando mentoria completa... (pode levar 2-5 minutos dependendo do modelo)
                   </>
                 ) : (
                   <>

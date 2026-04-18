@@ -236,7 +236,7 @@ def layer8_guardrails(plan: Plan) -> Dict[str, Any]:
 
 # ─── Camada 9 — Execução ──────────────────────────────────────────────────────
 async def layer9_execute(plan: Plan, executor_fn) -> Execution:
-    """executor_fn(step: PlanStep) -> dict. Coleta outputs e status final."""
+    """executor_fn(step: PlanStep, product_id) -> dict. Coleta outputs e status final."""
     ex = Execution(plan_id=plan.id, agent=plan.agent, status="running")
     await _db.james_executions.insert_one(ex.model_dump())
     outputs = []
@@ -244,7 +244,7 @@ async def layer9_execute(plan: Plan, executor_fn) -> Execution:
     err = None
     try:
         for s in plan.steps:
-            r = await executor_fn(s)
+            r = await executor_fn(s, plan.product_id)
             outputs.append({"action": s.action, "result": r})
             if isinstance(r, dict) and r.get("status") == "error":
                 ok = False

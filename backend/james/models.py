@@ -35,6 +35,13 @@ class Product(BaseModel):
     offer: str = ""
     budget_daily: float = 0.0
     status: Literal["active", "paused", "archived"] = "active"
+    # Meta Ads integration
+    meta_ad_account_id: Optional[str] = None     # act_XXXX
+    meta_pixel_id: Optional[str] = None
+    meta_page_id: Optional[str] = None
+    landing_url: Optional[str] = None
+    budget_preset: Literal["conservative", "moderate", "aggressive"] = "conservative"
+    last_campaign_created: Optional[str] = None
     # Autopilot 24/7
     autopilot_enabled: bool = False
     autopilot_interval_min: int = 30         # minutos entre ticks

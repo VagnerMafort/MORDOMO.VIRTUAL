@@ -46,6 +46,8 @@ SCOPES = [
     "pages_manage_posts",
     "pages_messaging",
     "business_management",
+    "ads_management",
+    "ads_read",
     "whatsapp_business_messaging",
     "whatsapp_business_management",
 ]

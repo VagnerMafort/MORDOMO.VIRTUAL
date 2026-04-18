@@ -55,6 +55,24 @@ async def _run_product_tick(product: dict):
     user_id = product["user_id"]
     auto_thresh = RISK_RANK.get(product.get("auto_approve_risk", "low"), 1)
 
+    # 1. Sincronizar insights reais do Meta (se tem campanhas criadas)
+    try:
+        camps = await _db.james_meta_campaigns.count_documents({"product_id": pid})
+        if camps:
+            from . import campaign_launcher as cl
+            from . import meta_ads_api as ma
+            campaigns = await _db.james_meta_campaigns.find(
+                {"product_id": pid, "user_id": user_id},
+                {"_id": 0, "campaign_id": 1},
+            ).to_list(100)
+            for c in campaigns:
+                rows = await ma.get_insights(user_id, c["campaign_id"],
+                                               level="campaign", date_preset="today")
+                await cl._ingest_insights(pid, user_id, rows, "campaign")
+    except Exception as e:
+        logger.warning(f"Autopilot Meta sync failed for {pid}: {e}")
+
+    # 2. Roda o tick normal (baseline → anomalias → plano)
     try:
         r = await orchestrator.tick(pid, evaluate=False)
     except Exception as e:
