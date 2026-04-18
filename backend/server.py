@@ -1245,9 +1245,26 @@ async def web_search_endpoint(q: str, max_results: int = 5, user: dict = Depends
     return {"query": q, "results": results, "count": len(results)}
 
 @api_router.get("/docs/manual")
-async def download_manual(format: str = "pdf"):
-    """Download the user manual in PDF or Markdown format."""
+async def download_manual(format: str = "pdf", kind: str = "kaelum"):
+    """Download do manual.
+    - kind=kaelum (default): manual geral do Kaelum.AI
+    - kind=james: manual COMPLETO da JAMES AGENCY (pt-BR, markdown)
+    - format=pdf|md
+    """
     from fastapi.responses import FileResponse
+    if kind.lower() == "james":
+        fmt = format.lower()
+        if fmt == "pdf":
+            path = "/app/docs/MANUAL_JAMES_AGENCY.pdf"
+            filename = "Manual_JAMES_AGENCY.pdf"
+            media = "application/pdf"
+        else:
+            path = "/app/docs/MANUAL_JAMES_AGENCY.md"
+            filename = "Manual_JAMES_AGENCY.md"
+            media = "text/markdown; charset=utf-8"
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="Manual JAMES nao encontrado")
+        return FileResponse(path, media_type=media, filename=filename)
     base = os.path.join(os.path.dirname(__file__), "static_docs")
     if format.lower() == "md":
         path = os.path.join(base, "MANUAL_MORDOMO_VIRTUAL.md")
