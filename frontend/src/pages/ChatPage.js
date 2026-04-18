@@ -166,7 +166,16 @@ export default function ChatPage() {
   };
 
   return (
-    <div data-testid="chat-page" className="flex overflow-hidden" style={{ background: 'var(--bg-base)', height: 'var(--app-vh, 100vh)' }}>
+    <div
+      data-testid="chat-page"
+      className="flex overflow-hidden"
+      style={{
+        background: 'var(--bg-base)',
+        height: 'var(--app-vh, 100vh)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        boxSizing: 'border-box',
+      }}
+    >
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
