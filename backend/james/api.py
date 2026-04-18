@@ -49,6 +49,15 @@ class ProductIn(BaseModel):
     budget_daily: float = 0.0
 
 
+class AutopilotConfigIn(BaseModel):
+    autopilot_enabled: bool
+    autopilot_interval_min: int = 30
+    auto_approve_risk: str = "low"        # none | low | medium | all
+    daily_report_enabled: bool = False
+    daily_report_channel: str = "telegram"
+    daily_report_hour: int = 9
+
+
 @router.get("/agents")
 async def list_agents(request: Request):
     await get_current_user(request)
@@ -82,6 +91,40 @@ async def delete_product(request: Request, product_id: str):
     await db.james_anomalies.delete_many({"product_id": product_id})
     await db.james_plans.delete_many({"product_id": product_id})
     return {"message": "Produto removido"}
+
+
+@router.put("/products/{product_id}/autopilot")
+async def set_autopilot(request: Request, product_id: str, body: AutopilotConfigIn):
+    """Liga/desliga o Autopilot 24/7 e configura parâmetros."""
+    user = await get_current_user(request)
+    p = await db.james_products.find_one({"id": product_id, "user_id": user["_id"]})
+    if not p:
+        raise HTTPException(404, "Produto não encontrado")
+    valid_risks = {"none", "low", "medium", "all"}
+    if body.auto_approve_risk not in valid_risks:
+        raise HTTPException(400, f"auto_approve_risk deve ser um de: {valid_risks}")
+    update = body.model_dump()
+    update["updated_at"] = _now()
+    await db.james_products.update_one({"id": product_id}, {"$set": update})
+    return {"message": "Autopilot configurado", "config": update}
+
+
+@router.get("/products/{product_id}/autopilot")
+async def get_autopilot(request: Request, product_id: str):
+    user = await get_current_user(request)
+    p = await db.james_products.find_one({"id": product_id, "user_id": user["_id"]}, {"_id": 0})
+    if not p:
+        raise HTTPException(404, "Produto não encontrado")
+    return {
+        "autopilot_enabled": p.get("autopilot_enabled", False),
+        "autopilot_interval_min": p.get("autopilot_interval_min", 30),
+        "auto_approve_risk": p.get("auto_approve_risk", "low"),
+        "daily_report_enabled": p.get("daily_report_enabled", False),
+        "daily_report_channel": p.get("daily_report_channel", "telegram"),
+        "daily_report_hour": p.get("daily_report_hour", 9),
+        "last_autopilot_tick": p.get("last_autopilot_tick"),
+        "last_autopilot_report": p.get("last_autopilot_report"),
+    }
 
 
 # ─── Ingest de métricas (Camada 1) ────────────────────────────────────────────

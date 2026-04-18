@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { X, Brain, Plus, Trash2, Zap, Play, CheckCircle2, AlertTriangle, FileText, Users, Activity, RefreshCw, Shield, Sparkles } from 'lucide-react';
+import { X, Brain, Plus, Trash2, Zap, Play, CheckCircle2, AlertTriangle, FileText, Users, Activity, RefreshCw, Shield, Sparkles, Rocket } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function JamesPanel({ onClose }) {
@@ -16,6 +16,8 @@ export default function JamesPanel({ onClose }) {
   const [loading, setLoading] = useState(false);
   const [newProduct, setNewProduct] = useState({ name: '', niche: '', target_audience: '', offer: '', budget_daily: 0 });
   const [showNewProduct, setShowNewProduct] = useState(false);
+  const [autopilotProduct, setAutopilotProduct] = useState(null);  // produto sendo configurado
+  const [autopilotConfig, setAutopilotConfig] = useState(null);
 
   const loadProducts = useCallback(async () => {
     try { const { data } = await api.get('/james/products'); setProducts(data); } catch {}
@@ -106,6 +108,26 @@ export default function JamesPanel({ onClose }) {
       const { data } = await api.post('/james/reports/generate', body);
       toast.success('Relatório gerado por ECHO');
       loadReports();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Erro'); }
+    setLoading(false);
+  };
+
+  const openAutopilot = async (p) => {
+    try {
+      const { data } = await api.get(`/james/products/${p.id}/autopilot`);
+      setAutopilotProduct(p);
+      setAutopilotConfig(data);
+    } catch (e) { toast.error('Erro ao carregar config'); }
+  };
+
+  const saveAutopilot = async () => {
+    if (!autopilotProduct) return;
+    setLoading(true);
+    try {
+      await api.put(`/james/products/${autopilotProduct.id}/autopilot`, autopilotConfig);
+      toast.success(autopilotConfig.autopilot_enabled ? 'Autopilot ATIVADO — rodando 24/7' : 'Autopilot desativado');
+      loadProducts();
+      setAutopilotProduct(null);
     } catch (e) { toast.error(e.response?.data?.detail || 'Erro'); }
     setLoading(false);
   };
@@ -226,6 +248,18 @@ export default function JamesPanel({ onClose }) {
                     </button>
                     <button onClick={() => runTick(p.id, true)} disabled={loading} className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold disabled:opacity-50" style={{ background: 'var(--success)', color: '#0b1220' }}>
                       <Play className="w-3 h-3" /> Tick + Run
+                    </button>
+                    <button
+                      data-testid={`autopilot-${p.id}`}
+                      onClick={() => openAutopilot(p)}
+                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold"
+                      style={{
+                        background: p.autopilot_enabled ? 'rgba(34,197,94,0.15)' : 'var(--bg-base)',
+                        border: `1px solid ${p.autopilot_enabled ? 'var(--success)' : 'var(--border-subtle)'}`,
+                        color: p.autopilot_enabled ? 'var(--success)' : 'var(--text-secondary)',
+                      }}
+                    >
+                      <Rocket className="w-3 h-3" /> {p.autopilot_enabled ? 'Autopilot ATIVO 24/7' : 'Ativar Autopilot 24/7'}
                     </button>
                   </div>
                 </div>
@@ -368,6 +402,123 @@ export default function JamesPanel({ onClose }) {
           )}
         </div>
       </div>
+
+      {/* ─── Modal de configuração Autopilot 24/7 ─── */}
+      {autopilotProduct && autopilotConfig && (
+        <div data-testid="autopilot-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}>
+          <div className="w-full max-w-md p-6" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 flex items-center justify-center" style={{ background: 'var(--accent)' }}>
+                <Rocket className="w-5 h-5" style={{ color: 'var(--accent-text)' }} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider" style={{ fontFamily: 'Outfit, sans-serif' }}>Autopilot 24/7</h3>
+                <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>{autopilotProduct.name}</p>
+              </div>
+            </div>
+
+            <label className="flex items-center gap-3 cursor-pointer mb-4 p-3" style={{ background: 'var(--bg-base)' }}>
+              <input
+                type="checkbox"
+                data-testid="autopilot-enabled-toggle"
+                checked={autopilotConfig.autopilot_enabled}
+                onChange={e => setAutopilotConfig({ ...autopilotConfig, autopilot_enabled: e.target.checked })}
+              />
+              <div className="flex-1">
+                <p className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>Ativar operação 24/7</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>JAMES roda ticks automaticamente no intervalo definido</p>
+              </div>
+            </label>
+
+            <div className="mb-4">
+              <label className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>Intervalo entre ticks (minutos)</label>
+              <input
+                type="number" min="5" max="1440"
+                data-testid="autopilot-interval-input"
+                value={autopilotConfig.autopilot_interval_min}
+                onChange={e => setAutopilotConfig({ ...autopilotConfig, autopilot_interval_min: parseInt(e.target.value) || 30 })}
+                className="w-full mt-1 px-3 py-2 text-sm"
+                style={{ background: 'var(--bg-base)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}
+              />
+              <p className="text-[10px] mt-1" style={{ color: 'var(--text-tertiary)' }}>Recomendado: 30 min. Min 5 min, max 24h (1440 min)</p>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>Auto-aprovar planos até risco</label>
+              <select
+                data-testid="autopilot-risk-select"
+                value={autopilotConfig.auto_approve_risk}
+                onChange={e => setAutopilotConfig({ ...autopilotConfig, auto_approve_risk: e.target.value })}
+                className="w-full mt-1 px-3 py-2 text-sm"
+                style={{ background: 'var(--bg-base)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}
+              >
+                <option value="none">Nenhum — só avisar (manual sempre)</option>
+                <option value="low">Baixo risco (recomendado)</option>
+                <option value="medium">Baixo + Médio risco</option>
+                <option value="all">Todos — inclusive alto risco (arriscado!)</option>
+              </select>
+              <p className="text-[10px] mt-1" style={{ color: 'var(--text-tertiary)' }}>Planos acima desse risco ficam na inbox aguardando sua aprovação</p>
+            </div>
+
+            <label className="flex items-center gap-3 cursor-pointer mb-4 p-3" style={{ background: 'var(--bg-base)' }}>
+              <input
+                type="checkbox"
+                data-testid="autopilot-daily-report-toggle"
+                checked={autopilotConfig.daily_report_enabled}
+                onChange={e => setAutopilotConfig({ ...autopilotConfig, daily_report_enabled: e.target.checked })}
+              />
+              <div className="flex-1">
+                <p className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>Relatório diário via Telegram</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>ECHO envia resumo automático todo dia às {autopilotConfig.daily_report_hour}h UTC</p>
+              </div>
+            </label>
+
+            {autopilotConfig.daily_report_enabled && (
+              <div className="mb-4">
+                <label className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>Hora do envio (UTC 0-23)</label>
+                <input
+                  type="number" min="0" max="23"
+                  value={autopilotConfig.daily_report_hour}
+                  onChange={e => setAutopilotConfig({ ...autopilotConfig, daily_report_hour: parseInt(e.target.value) || 9 })}
+                  className="w-full mt-1 px-3 py-2 text-sm"
+                  style={{ background: 'var(--bg-base)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}
+                />
+                <p className="text-[10px] mt-1" style={{ color: 'var(--text-tertiary)' }}>Brasília (UTC-3): para receber às 9h da manhã, configure 12 aqui</p>
+              </div>
+            )}
+
+            {autopilotConfig.last_autopilot_tick && (
+              <p className="text-[10px] mb-3" style={{ color: 'var(--text-tertiary)' }}>
+                Último tick automático: {new Date(autopilotConfig.last_autopilot_tick).toLocaleString('pt-BR')}
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                data-testid="autopilot-save-btn"
+                onClick={saveAutopilot} disabled={loading}
+                className="flex-1 py-2 text-xs font-bold disabled:opacity-50"
+                style={{ background: 'var(--accent)', color: 'var(--accent-text)' }}
+              >
+                {loading ? 'Salvando...' : 'Salvar configuração'}
+              </button>
+              <button
+                onClick={() => setAutopilotProduct(null)}
+                className="px-4 py-2 text-xs font-bold"
+                style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+              >
+                Cancelar
+              </button>
+            </div>
+
+            <p className="mt-4 text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
+              Como funciona: o sistema verifica cada produto com Autopilot ativo a cada 60s.
+              Ticks rodam no intervalo configurado. Planos dentro do risco tolerado são auto-executados.
+              Os demais ficam em Planos → Validated aguardando seu clique.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

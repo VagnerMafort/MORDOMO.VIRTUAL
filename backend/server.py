@@ -1339,10 +1339,15 @@ tiktok_oauth.init(db, get_current_user, os.environ["JWT_SECRET"])
 app.include_router(tiktok_oauth.router)
 
 # JAMES AGENCY — Autonomous Marketing Intelligence (24 agentes · 14 camadas)
-from james import api as james_api, orchestrator as james_orchestrator
+from james import api as james_api, orchestrator as james_orchestrator, autopilot as james_autopilot
 james_orchestrator.init(db, OLLAMA_URL, OLLAMA_MODEL)
 james_api.init(db, get_current_user)
 app.include_router(james_api.router)
+
+
+@app.on_event("startup")
+async def _start_james_autopilot():
+    james_autopilot.start(db)
 
 # Smart LLM
 import smart_llm

@@ -35,6 +35,15 @@ class Product(BaseModel):
     offer: str = ""
     budget_daily: float = 0.0
     status: Literal["active", "paused", "archived"] = "active"
+    # Autopilot 24/7
+    autopilot_enabled: bool = False
+    autopilot_interval_min: int = 30         # minutos entre ticks
+    auto_approve_risk: Literal["none", "low", "medium", "all"] = "low"
+    daily_report_enabled: bool = False
+    daily_report_channel: Literal["telegram", "email", "none"] = "telegram"
+    daily_report_hour: int = 9               # 0-23 UTC
+    last_autopilot_tick: Optional[str] = None
+    last_autopilot_report: Optional[str] = None
     created_at: str = Field(default_factory=_now)
     updated_at: str = Field(default_factory=_now)
 
