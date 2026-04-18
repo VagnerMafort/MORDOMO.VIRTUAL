@@ -1250,9 +1250,16 @@ async def download_manual(format: str = "pdf", kind: str = "kaelum"):
     """Download do manual.
     - kind=kaelum (default): manual geral do Kaelum.AI
     - kind=james: manual COMPLETO da JAMES AGENCY (pt-BR, markdown)
+    - kind=sample_mentorship: PDF de amostra do novo design premium
     - format=pdf|md
     """
     from fastapi.responses import FileResponse
+    if kind.lower() == "sample_mentorship":
+        path = "/app/docs/exemplo_mentoria_premium.pdf"
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="Sample nao encontrado")
+        return FileResponse(path, media_type="application/pdf",
+                             filename="Exemplo_Mentoria_Premium.pdf")
     if kind.lower() == "james":
         fmt = format.lower()
         if fmt == "pdf":

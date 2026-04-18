@@ -425,50 +425,357 @@ async def export_docx(mentorship_id: str, request: Request):
         raise HTTPException(status_code=500, detail=f"Erro ao gerar DOCX: {str(e)}")
 
 def build_export_html(m: dict) -> str:
-    """Build HTML for PDF export."""
+    """Build HTML profissional para export PDF — estilo eBook premium."""
     title = m.get("title", "Mentoria")
     modules = m.get("modules", [])
     content = m.get("content", "")
+    niche = m.get("niche", "")
+    audience = m.get("target_audience", "")
+    weeks = m.get("duration_weeks", 8)
+    from datetime import datetime
+    date_str = datetime.now().strftime("%B de %Y")
 
-    html = f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
-    <style>
-        @page {{ margin: 2cm; size: A4; }}
-        body {{ font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.6; color: #222; }}
-        h1 {{ color: #1a1a1a; font-size: 24pt; text-align: center; margin-bottom: 5px; }}
-        h2 {{ color: #333; font-size: 16pt; border-bottom: 2px solid #FFD600; padding-bottom: 5px; margin-top: 30px; }}
-        h3 {{ color: #555; font-size: 13pt; }}
-        .subtitle {{ text-align: center; color: #666; font-size: 10pt; margin-bottom: 30px; }}
-        .module {{ page-break-inside: avoid; margin-bottom: 20px; }}
-        .lesson {{ margin-left: 15px; margin-bottom: 10px; padding: 8px; background: #f9f9f9; border-left: 3px solid #FFD600; }}
-        .exercise {{ margin-left: 15px; padding: 5px; }}
-        ul {{ padding-left: 20px; }}
-        strong {{ color: #1a1a1a; }}
-        .cover {{ text-align: center; padding: 60px 0; }}
-    </style></head><body>
-    <div class="cover"><h1>{title}</h1>
-    <p class="subtitle">{m.get('niche', '')} | {m.get('duration_weeks', 8)} semanas</p></div>"""
-
+    # TOC (table of contents)
+    toc_items = ""
     if modules:
         for mod in sorted(modules, key=lambda x: x.get("order", 0)):
-            html += f'<div class="module"><h2>Modulo {mod["order"]+1}: {mod["title"]}</h2>'
-            if mod.get("objective"):
-                html += f'<p><strong>Objetivo:</strong> {mod["objective"]}</p>'
-            for lesson in sorted(mod.get("lessons", []), key=lambda x: x.get("order", 0)):
-                html += f'<div class="lesson"><h3>{lesson["title"]}</h3>'
-                if lesson.get("content"):
-                    html += f'<p>{lesson["content"]}</p>'
-                if lesson.get("duration"):
-                    html += f'<p><em>Duracao: {lesson["duration"]}</em></p>'
-                html += '</div>'
-            if mod.get("exercises"):
-                html += '<h3>Exercicios</h3><ul>'
-                for ex in mod["exercises"]:
-                    html += f'<li><strong>{ex.get("title", "")}</strong>: {ex.get("description", "")}</li>'
-                html += '</ul>'
-            html += '</div>'
-    else:
-        md_html = markdown2.markdown(content)
-        html += md_html
+            toc_items += f'<li><span class="toc-num">{mod["order"]+1:02d}</span> <span class="toc-title">{mod["title"]}</span></li>'
 
-    html += '</body></html>'
+    # Módulos formatados
+    modules_html = ""
+    if modules:
+        for mod in sorted(modules, key=lambda x: x.get("order", 0)):
+            modules_html += f'''
+            <section class="module">
+              <div class="mod-header">
+                <span class="mod-num">{mod["order"]+1:02d}</span>
+                <h2>{mod["title"]}</h2>
+              </div>'''
+            if mod.get("objective"):
+                modules_html += f'<div class="objective"><strong>🎯 Objetivo</strong><p>{mod["objective"]}</p></div>'
+            if mod.get("lessons"):
+                modules_html += '<div class="lessons-list">'
+                for lesson in sorted(mod.get("lessons", []), key=lambda x: x.get("order", 0)):
+                    modules_html += f'<article class="lesson"><h3>{lesson["title"]}</h3>'
+                    if lesson.get("duration"):
+                        modules_html += f'<span class="duration">⏱ {lesson["duration"]}</span>'
+                    if lesson.get("content"):
+                        modules_html += f'<p>{lesson["content"]}</p>'
+                    modules_html += '</article>'
+                modules_html += '</div>'
+            if mod.get("exercises"):
+                modules_html += '<div class="exercises"><h3>📝 Exercícios práticos</h3>'
+                for ex in mod["exercises"]:
+                    modules_html += f'<div class="exercise"><strong>{ex.get("title","")}</strong><p>{ex.get("description","")}</p></div>'
+                modules_html += '</div>'
+            modules_html += '</section>'
+    else:
+        modules_html = markdown2.markdown(content, extras=["tables", "fenced-code-blocks"])
+
+    html = f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+    <title>{title}</title>
+    <style>
+      @page {{
+        size: A4;
+        margin: 2.2cm 1.8cm 2.5cm 1.8cm;
+        @bottom-center {{
+          content: counter(page) " de " counter(pages);
+          font-family: 'Helvetica', sans-serif;
+          font-size: 9pt;
+          color: #888;
+        }}
+        @bottom-right {{
+          content: "Kaelum.AI · Mentoria Premium";
+          font-family: 'Helvetica', sans-serif;
+          font-size: 8pt;
+          color: #aaa;
+        }}
+      }}
+      @page :first {{
+        margin: 0;
+        @bottom-center {{ content: none; }}
+        @bottom-right {{ content: none; }}
+      }}
+
+      * {{ box-sizing: border-box; }}
+      body {{
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 11pt;
+        line-height: 1.65;
+        color: #2c2c2c;
+        margin: 0;
+      }}
+
+      /* ─── CAPA ─── */
+      .cover {{
+        page-break-after: always;
+        height: 29.7cm;
+        padding: 4cm 2.5cm 3cm 2.5cm;
+        background: linear-gradient(135deg, #0b1220 0%, #1a2744 50%, #2d1b3d 100%);
+        color: #fff;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }}
+      .cover::before {{
+        content: '';
+        position: absolute;
+        top: 0; right: 0;
+        width: 8cm; height: 8cm;
+        background: radial-gradient(circle, rgba(255,214,0,0.35) 0%, transparent 70%);
+      }}
+      .cover-brand {{
+        position: relative;
+        font-size: 11pt;
+        letter-spacing: 6px;
+        color: #FFD600;
+        font-weight: 700;
+        text-transform: uppercase;
+      }}
+      .cover-brand::before {{
+        content: "■";
+        margin-right: 10px;
+        color: #FFD600;
+      }}
+      .cover-content {{ position: relative; }}
+      .cover-label {{
+        font-size: 10pt;
+        letter-spacing: 4px;
+        color: #FFD600;
+        text-transform: uppercase;
+        margin-bottom: 20px;
+      }}
+      .cover h1 {{
+        font-size: 42pt;
+        font-weight: 800;
+        line-height: 1.1;
+        margin: 0 0 30px 0;
+        letter-spacing: -1.5px;
+        color: #fff;
+      }}
+      .cover-subtitle {{
+        font-size: 14pt;
+        color: rgba(255,255,255,0.8);
+        line-height: 1.5;
+        margin-bottom: 40px;
+        max-width: 14cm;
+      }}
+      .cover-meta {{
+        position: relative;
+        border-top: 1px solid rgba(255,214,0,0.3);
+        padding-top: 25px;
+        display: flex;
+        justify-content: space-between;
+        font-size: 10pt;
+        color: rgba(255,255,255,0.7);
+      }}
+      .cover-meta div strong {{
+        display: block;
+        color: #FFD600;
+        font-size: 9pt;
+        letter-spacing: 2px;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+      }}
+
+      /* ─── TOC ─── */
+      .toc {{
+        page-break-after: always;
+        padding-top: 0.5cm;
+      }}
+      .toc-title {{
+        font-size: 9pt;
+        letter-spacing: 4px;
+        color: #888;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }}
+      .toc h2 {{
+        font-size: 32pt;
+        font-weight: 800;
+        color: #0b1220;
+        margin: 0 0 40px 0;
+        letter-spacing: -1px;
+        border: none;
+        padding: 0;
+      }}
+      .toc ol {{ list-style: none; padding: 0; margin: 0; }}
+      .toc li {{
+        display: flex;
+        align-items: baseline;
+        padding: 14px 0;
+        border-bottom: 1px solid #eee;
+      }}
+      .toc .toc-num {{
+        font-weight: 800;
+        color: #FFD600;
+        font-size: 13pt;
+        min-width: 2cm;
+        letter-spacing: 1px;
+      }}
+      .toc .toc-title {{
+        font-size: 12pt;
+        color: #2c2c2c;
+        font-weight: 500;
+        letter-spacing: normal;
+        text-transform: none;
+      }}
+
+      /* ─── MÓDULOS ─── */
+      .module {{
+        page-break-inside: auto;
+        page-break-before: always;
+        padding-top: 0.3cm;
+      }}
+      .mod-header {{
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 3px solid #FFD600;
+      }}
+      .mod-num {{
+        background: #0b1220;
+        color: #FFD600;
+        font-weight: 800;
+        font-size: 14pt;
+        padding: 8px 14px;
+        letter-spacing: 1px;
+      }}
+      .module h2 {{
+        font-size: 22pt;
+        font-weight: 800;
+        color: #0b1220;
+        margin: 0;
+        line-height: 1.2;
+        letter-spacing: -0.5px;
+      }}
+
+      .objective {{
+        background: #fffbe6;
+        border-left: 4px solid #FFD600;
+        padding: 15px 20px;
+        margin-bottom: 28px;
+      }}
+      .objective strong {{
+        font-size: 10pt;
+        letter-spacing: 2px;
+        color: #8a6d00;
+        text-transform: uppercase;
+      }}
+      .objective p {{ margin: 6px 0 0 0; font-size: 11pt; color: #2c2c2c; }}
+
+      /* ─── LIÇÕES ─── */
+      .lessons-list {{ margin-bottom: 30px; }}
+      .lesson {{
+        page-break-inside: avoid;
+        margin-bottom: 22px;
+        padding: 20px 24px;
+        background: #fafafa;
+        border-left: 4px solid #0b1220;
+        position: relative;
+      }}
+      .lesson h3 {{
+        font-size: 14pt;
+        font-weight: 700;
+        color: #0b1220;
+        margin: 0 0 8px 0;
+      }}
+      .lesson .duration {{
+        display: inline-block;
+        background: #0b1220;
+        color: #FFD600;
+        font-size: 8pt;
+        letter-spacing: 1px;
+        padding: 3px 10px;
+        margin-bottom: 10px;
+        font-weight: 700;
+      }}
+      .lesson p {{
+        margin: 0;
+        font-size: 10.5pt;
+        color: #444;
+        line-height: 1.7;
+      }}
+
+      /* ─── EXERCÍCIOS ─── */
+      .exercises {{
+        page-break-inside: avoid;
+        background: linear-gradient(135deg, #fff8d6 0%, #fff 100%);
+        border: 2px dashed #FFD600;
+        padding: 25px;
+        margin-top: 30px;
+      }}
+      .exercises h3 {{
+        font-size: 13pt;
+        color: #8a6d00;
+        margin: 0 0 15px 0;
+        font-weight: 800;
+      }}
+      .exercise {{
+        background: #fff;
+        padding: 14px 18px;
+        margin-bottom: 12px;
+        border-left: 3px solid #FFD600;
+      }}
+      .exercise:last-child {{ margin-bottom: 0; }}
+      .exercise strong {{
+        display: block;
+        color: #0b1220;
+        margin-bottom: 4px;
+        font-size: 11pt;
+      }}
+      .exercise p {{
+        margin: 0;
+        font-size: 10pt;
+        color: #555;
+      }}
+
+      /* Raw markdown fallback */
+      h2 {{ color: #0b1220; font-size: 18pt; border-bottom: 2px solid #FFD600; padding-bottom: 8px; margin-top: 40px; }}
+      h3 {{ color: #333; font-size: 13pt; margin-top: 20px; }}
+      p {{ margin: 10px 0; }}
+      ul, ol {{ padding-left: 24px; }}
+      strong {{ color: #0b1220; }}
+      code {{ background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 9pt; }}
+      blockquote {{
+        border-left: 4px solid #FFD600;
+        padding: 8px 16px;
+        color: #555;
+        font-style: italic;
+        background: #fffbe6;
+        margin: 12px 0;
+      }}
+    </style></head><body>
+
+    <!-- CAPA -->
+    <div class="cover">
+      <div class="cover-brand">Kaelum.AI</div>
+      <div class="cover-content">
+        <div class="cover-label">Mentoria Premium · {weeks} semanas</div>
+        <h1>{title}</h1>
+        <p class="cover-subtitle">{(audience or niche or 'Programa estruturado em módulos progressivos para transformação prática.')[:180]}</p>
+      </div>
+      <div class="cover-meta">
+        <div><strong>Nicho</strong>{niche or '—'}</div>
+        <div><strong>Duração</strong>{weeks} semanas</div>
+        <div><strong>Edição</strong>{date_str}</div>
+      </div>
+    </div>
+
+    <!-- SUMÁRIO -->
+    <div class="toc">
+      <div class="toc-title">Índice</div>
+      <h2>Conteúdo Programático</h2>
+      <ol>
+        {toc_items}
+      </ol>
+    </div>
+
+    <!-- MÓDULOS -->
+    {modules_html}
+
+    </body></html>"""
     return html
