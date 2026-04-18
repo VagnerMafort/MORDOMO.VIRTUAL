@@ -168,13 +168,8 @@ export default function ChatPage() {
   return (
     <div
       data-testid="chat-page"
-      className="flex overflow-hidden"
-      style={{
-        background: 'var(--bg-base)',
-        height: 'var(--app-vh, 100vh)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-        boxSizing: 'border-box',
-      }}
+      className="kaelum-chat-root flex overflow-hidden"
+      style={{ background: 'var(--bg-base)' }}
     >
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (

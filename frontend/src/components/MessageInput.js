@@ -67,7 +67,7 @@ export default function MessageInput({ onSend, disabled }) {
   };
 
   return (
-    <div className="px-3 pb-3 pt-2 sm:px-6 sm:pb-4" style={{ background: 'var(--bg-base)' }}>
+    <div className="kaelum-input-safe px-3 pb-3 pt-2 sm:px-6 sm:pb-4" style={{ background: 'var(--bg-base)' }}>
       <div
         data-testid="message-input-container"
         className="max-w-3xl mx-auto flex items-end gap-2 p-2"

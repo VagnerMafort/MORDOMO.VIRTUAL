@@ -173,3 +173,19 @@ code, pre, .font-mono {
   color: var(--text-secondary);
   margin: 0.5em 0;
 }
+
+/* === Mobile / PWA safe-area handling === */
+.kaelum-chat-root {
+  height: var(--app-vh, 100vh);
+  /* Em PWA iOS, desconta o home indicator area da altura total */
+  height: calc(var(--app-vh, 100vh) - env(safe-area-inset-bottom, 0px));
+}
+.kaelum-input-safe {
+  /* Garante que o input tem folga suficiente acima do home indicator */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px) !important;
+}
+@supports (padding: max(0px)) {
+  .kaelum-input-safe {
+    padding-bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 12px)) !important;
+  }
+}
