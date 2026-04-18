@@ -144,7 +144,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div data-testid="chat-page" className="h-screen h-[100dvh] flex overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+    <div data-testid="chat-page" className="h-screen h-[100svh] flex overflow-hidden" style={{ background: 'var(--bg-base)' }}>
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
