@@ -36,7 +36,7 @@ get_google_credentials = None
 # ─── Conectores ───────────────────────────────────────────────────────────────
 async def _publish_youtube(user_id: str, title: str, description: str,
                             media_bytes: bytes, mime: str, privacy: str = "private",
-                            tags: List[str] = None) -> Dict[str, Any]:
+                            tags: List[str] = None, media_url: Optional[str] = None) -> Dict[str, Any]:
     try:
         from googleapiclient.discovery import build
         from googleapiclient.http import MediaIoBaseUpload
@@ -68,7 +68,7 @@ async def _publish_placeholder(network_name: str) -> Dict[str, Any]:
 
 async def _publish_instagram(user_id: str, title: str, description: str,
                               media_bytes: bytes, mime: str, privacy: str = "private",
-                              tags: List[str] = None) -> Dict[str, Any]:
+                              tags: List[str] = None, media_url: Optional[str] = None) -> Dict[str, Any]:
     """Instagram requer image_url público. Usuário deve passar URL externa via chat/form.
     Para upload direto, precisaríamos hospedar a mídia primeiro (S3/Drive). MVP: usar apenas URL."""
     return {"network": "instagram", "status": "error",
@@ -77,7 +77,7 @@ async def _publish_instagram(user_id: str, title: str, description: str,
 
 async def _publish_facebook(user_id: str, title: str, description: str,
                              media_bytes: bytes, mime: str, privacy: str = "private",
-                             tags: List[str] = None) -> Dict[str, Any]:
+                             tags: List[str] = None, media_url: Optional[str] = None) -> Dict[str, Any]:
     try:
         import meta_oauth
         acc = await meta_oauth.get_meta_account(user_id)
@@ -99,12 +99,48 @@ async def _publish_facebook(user_id: str, title: str, description: str,
         return {"network": "facebook", "status": "error", "message": str(e)[:200]}
 
 
+async def _publish_tiktok(user_id: str, title: str, description: str,
+                           media_bytes: bytes, mime: str, privacy: str = "private",
+                           tags: List[str] = None,
+                           media_url: Optional[str] = None) -> Dict[str, Any]:
+    """TikTok publica via PULL_FROM_URL — requer media_url pública.
+    Bytes upload direto exigiria chunk upload + URL pública via storage; MVP usa URL."""
+    try:
+        if not media_url:
+            return {"network": "tiktok", "status": "error",
+                    "message": "TikTok requer 'media_url' pública (HTTPS). Upload binário direto não suportado no MVP."}
+        import tiktok_oauth
+        # Mapeia privacy interno ("private"|"public") para TikTok privacy_level
+        privacy_map = {
+            "private": "SELF_ONLY",
+            "unlisted": "SELF_ONLY",
+            "public": "PUBLIC_TO_EVERYONE",
+        }
+        tk_privacy = privacy_map.get(privacy.lower(), "SELF_ONLY")
+        # Monta title/description final
+        body_title = title[:150] if title else ""
+        if description:
+            body_title = (f"{body_title}\n{description}")[:150] if body_title else description[:150]
+        r = await tiktok_oauth.publish_video_from_url(
+            user_id=user_id, video_url=media_url, title=body_title,
+            privacy_level=tk_privacy,
+        )
+        if r.get("error"):
+            return {"network": "tiktok", "status": "error", "message": r["error"]}
+        pid = r.get("publish_id", "")
+        return {"network": "tiktok", "status": "ok", "id": pid,
+                "url": f"tiktok://publish/{pid}",
+                "message": "Vídeo em processamento — TikTok está baixando da URL. Use get_publish_status para acompanhar."}
+    except Exception as e:
+        return {"network": "tiktok", "status": "error", "message": str(e)[:200]}
+
+
 PUBLISHERS = {
     "youtube": _publish_youtube,
     "facebook": _publish_facebook,
     "instagram": _publish_instagram,
+    "tiktok": _publish_tiktok,
     # Placeholders:
-    "tiktok": None,
     "whatsapp": None,
 }
 
@@ -127,7 +163,7 @@ async def publish(request: Request, title: str = Form(...), description: str = F
         if publisher is None:
             results.append(await _publish_placeholder(net))
             continue
-        r = await publisher(user["_id"], title, description, media_bytes, mime, privacy, tag_list)
+        r = await publisher(user["_id"], title, description, media_bytes, mime, privacy, tag_list, None)
         results.append(r)
     ok_count = sum(1 for r in results if r["status"] == "ok")
     return {
@@ -142,6 +178,9 @@ async def list_networks(request: Request):
     user = await get_current_user(request)
     google = await db.google_accounts.find_one({"user_id": user["_id"]})
     meta = await db.meta_accounts.find_one({"user_id": user["_id"]})
+    tiktok = await db.tiktok_accounts.find_one({"user_id": user["_id"]})
+    tiktok_cfg = await db.oauth_config.find_one({"provider": "tiktok"})
+    tiktok_available = bool(tiktok_cfg and tiktok_cfg.get("enabled"))
     ig_connected = False
     if meta:
         for p in meta.get("pages", []):
@@ -154,7 +193,9 @@ async def list_networks(request: Request):
             {"key": "facebook", "name": "Facebook", "connected": bool(meta and meta.get("pages")), "available": True},
             {"key": "instagram", "name": "Instagram", "connected": ig_connected, "available": True,
              "message": "Requer URL pública — use skill direta"},
-            {"key": "tiktok", "name": "TikTok", "connected": False, "available": False, "message": "Em breve"},
+            {"key": "tiktok", "name": "TikTok", "connected": bool(tiktok),
+             "available": tiktok_available,
+             "message": "Requer URL pública (PULL_FROM_URL)" if tiktok_available else "Admin precisa configurar Client Key"},
             {"key": "whatsapp", "name": "WhatsApp Business", "connected": bool(meta), "available": False,
              "message": "Use skill direta [SKILL:whatsapp]"},
         ]
@@ -187,7 +228,7 @@ async def execute_social_publish(args: dict, user_id: str) -> str:
         if pub is None:
             results.append(await _publish_placeholder(net))
         else:
-            results.append(await pub(user_id, title, description, media_bytes, mime, privacy, []))
+            results.append(await pub(user_id, title, description, media_bytes, mime, privacy, [], media_url))
     lines = ["Publicação multi-rede:"]
     for r in results:
         if r["status"] == "ok":

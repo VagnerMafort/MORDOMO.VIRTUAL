@@ -110,12 +110,16 @@ export default function WakeWordListener({ agentName, enabled, onActivated }) {
     }
   }, [enabled, status, startPassiveListening]);
 
-  if (!enabled) return null;
+  // Hide indicator when not enabled OR when recognition hasn't started yet ('off').
+  // On mobile the FAB/header button covers the hands-free entry point, so we
+  // only surface the passive listener badge on large screens where it won't
+  // overlap the message input.
+  if (!enabled || status === 'off') return null;
 
   return (
     <div
       data-testid="wake-word-indicator"
-      className="fixed bottom-6 left-6 z-20 flex items-center gap-2 px-3 py-2 transition-all"
+      className="hidden lg:flex fixed bottom-6 left-6 z-20 items-center gap-2 px-3 py-2 transition-all pointer-events-none"
       style={{
         background: status === 'detected' ? 'var(--accent)' : 'var(--bg-surface)',
         border: `1px solid ${status === 'listening' ? 'var(--success)' : 'var(--border-subtle)'}`,
@@ -125,15 +129,14 @@ export default function WakeWordListener({ agentName, enabled, onActivated }) {
       <span
         className="w-2 h-2 rounded-full flex-shrink-0"
         style={{
-          background: status === 'listening' ? 'var(--success)' : status === 'detected' ? 'var(--accent-text)' : 'var(--text-tertiary)',
+          background: status === 'listening' ? 'var(--success)' : 'var(--accent-text)',
           animation: status === 'listening' ? 'pulse-ring 2s infinite' : 'none',
         }}
       />
       <span className="text-xs font-mono" style={{
         color: status === 'detected' ? 'var(--accent-text)' : 'var(--text-tertiary)',
       }}>
-        {status === 'listening' ? `"Hey ${agentName || 'Mordomo'}"` :
-         status === 'detected' ? 'Ativado!' : 'Off'}
+        {status === 'listening' ? `"Hey ${agentName || 'Mordomo'}"` : 'Ativado!'}
       </span>
     </div>
   );

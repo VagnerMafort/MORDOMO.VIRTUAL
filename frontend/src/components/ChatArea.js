@@ -161,8 +161,8 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
   // Empty state
   if (!conversationId && messages.length === 0) {
     return (
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1 flex items-center justify-center px-6">
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex items-center justify-center px-6 overflow-y-auto">
           <div className="text-center animate-fade-in max-w-lg">
             <img src="/kaelum-icon.png" alt="Kaelum.AI" className="w-16 h-16 mx-auto mb-6 object-contain" />
             <h2 className="text-2xl font-black tracking-tighter mb-3" style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--text-primary)' }}>

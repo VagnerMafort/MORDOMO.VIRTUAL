@@ -1323,6 +1323,11 @@ import meta_skills
 meta_skills.init(db, get_current_user, meta_oauth.get_meta_account)
 app.include_router(meta_skills.router)
 
+# TikTok OAuth (FASE 3 — TikTok Content Posting API)
+import tiktok_oauth
+tiktok_oauth.init(db, get_current_user, os.environ["JWT_SECRET"])
+app.include_router(tiktok_oauth.router)
+
 # Smart LLM
 import smart_llm
 smart_llm.init(db, OLLAMA_URL, "qwen2.5:7b", OLLAMA_MODEL)

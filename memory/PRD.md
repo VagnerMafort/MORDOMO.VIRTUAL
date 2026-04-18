@@ -93,6 +93,16 @@ Portuguese (pt-BR) — SEMPRE responder em português.
 - Frontend: modal "Publicar em Redes" com status por rede
 - 🟡 TikTok/Instagram/Facebook/WhatsApp como placeholders — depende de FASE 2 (Meta) e TikTok for Developers
 
+### FASE 3 — TikTok OAuth + Content Posting API (Apr 18, 2026) ✅
+- **OAuth v2**: admin configura Client Key/Secret no painel (Fernet encrypted), usuário conecta via botão "Conectar com TikTok"
+- **Scopes**: user.info.basic, video.upload, video.publish
+- **Auto-refresh** de access_token (24h) com refresh_token (365d) armazenado criptografado
+- **Content Posting API**: publicação via PULL_FROM_URL (TikTok baixa vídeo de URL pública)
+- REST: `/api/admin/integrations/tiktok` (CRUD config), `/integrations/tiktok/start|status|disconnect`, `/oauth/tiktok/callback`
+- Integrado no `social_publisher.py` — `/api/social/publish` agora aceita `networks=["tiktok"]` quando `media_url` for fornecido
+- Frontend: card TikTok em Minhas Integrações (rosa #ff0050) + aba config admin com redirect URI copiável
+- Mobile UI bug fix: `WakeWordListener` não sobrepõe mais o input em telas <lg; ChatPage adota `h-dvh`
+
 ### FASE 2 — Meta Ecosystem (Feb 18, 2026) ✅
 - Meta OAuth v21.0 (admin config + user connect, long-lived 60d, Fernet encryption)
 - 3 skills novas: `[SKILL:instagram]`, `[SKILL:facebook]`, `[SKILL:whatsapp]`

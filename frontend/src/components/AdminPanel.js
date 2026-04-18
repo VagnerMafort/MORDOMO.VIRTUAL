@@ -610,6 +610,7 @@ function IntegrationsTab({ api }) {
     <div className="space-y-4">
       <GoogleIntegrationCard api={api} />
       <MetaIntegrationCard api={api} />
+      <TiktokIntegrationCard api={api} />
     </div>
   );
 }
@@ -704,11 +705,6 @@ function GoogleIntegrationCard({ api }) {
             {cfg.scopes?.map(s => <li key={s}>• {s.replace('https://www.googleapis.com/auth/', '')}</li>)}
           </ul>
         </details>
-      </div>
-
-      <div className="p-4 opacity-50" style={{ background: 'var(--bg-surface)', border: '1px dashed var(--border-subtle)' }}>
-        <p className="text-xs font-bold mb-1" style={{ fontFamily: 'Outfit, sans-serif' }}>TikTok</p>
-        <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Próxima fase — requer aprovação TikTok for Developers</p>
       </div>
     </div>
   );
@@ -805,3 +801,100 @@ function MetaIntegrationCard({ api }) {
     </div>
   );
 }
+
+// ─── TikTok Card ──────────────────────────────────────────────────────────────
+function TiktokIntegrationCard({ api }) {
+  const [cfg, setCfg] = useState(null);
+  const [form, setForm] = useState({ client_key: '', client_secret: '', enabled: true });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await api.get('/admin/integrations/tiktok');
+      setCfg(data);
+      setForm(f => ({ ...f, client_key: data.client_key || '', enabled: data.enabled }));
+    } catch {}
+  }, [api]);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.put('/admin/integrations/tiktok', form);
+      toast.success('TikTok App salvo');
+      setForm(f => ({ ...f, client_secret: '' }));
+      load();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Erro'); }
+    setSaving(false);
+  };
+
+  const remove = async () => {
+    if (!window.confirm('Remover configuração TikTok?')) return;
+    await api.delete('/admin/integrations/tiktok');
+    toast.success('Removido'); load();
+  };
+
+  const copyRedirect = () => {
+    const uri = `${window.location.origin}/api/oauth/tiktok/callback`;
+    navigator.clipboard.writeText(uri);
+    toast.success('Redirect URI copiado');
+  };
+
+  if (!cfg) return null;
+
+  return (
+    <div className="p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <span className="w-8 h-8 flex items-center justify-center text-sm font-bold" style={{ background: 'rgba(255,0,80,0.15)', color: '#ff0050' }}>T</span>
+          <div>
+            <h3 className="text-sm font-bold" style={{ fontFamily: 'Outfit, sans-serif' }}>TikTok for Developers</h3>
+            <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Content Posting API · video.upload · video.publish</p>
+          </div>
+        </div>
+        {cfg.configured ? (
+          <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)' }}>Configurado</span>
+        ) : (
+          <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--error)' }}>Pendente</span>
+        )}
+      </div>
+
+      <div className="mb-4 p-3" style={{ background: 'var(--bg-base)' }}>
+        <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--text-tertiary)' }}>Redirect URI para developers.tiktok.com</p>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 text-[11px] truncate" style={{ color: 'var(--accent)' }}>{window.location.origin}/api/oauth/tiktok/callback</code>
+          <button data-testid="copy-tiktok-redirect" onClick={copyRedirect} className="p-1.5" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}><Copy className="w-3.5 h-3.5" /></button>
+        </div>
+      </div>
+
+      <Input label="Client Key" value={form.client_key} onChange={v => setForm({ ...form, client_key: v })} testid="tiktok-client-key" />
+      <Input label={cfg.client_secret_set ? 'Client Secret (deixe em branco para não alterar)' : 'Client Secret'} type="password" value={form.client_secret} onChange={v => setForm({ ...form, client_secret: v })} testid="tiktok-client-secret" />
+      <label className="flex items-center gap-2 text-xs cursor-pointer mb-4">
+        <input type="checkbox" checked={form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} data-testid="tiktok-enabled-toggle" />
+        <span style={{ color: 'var(--text-secondary)' }}>Habilitar integração TikTok</span>
+      </label>
+
+      <div className="flex gap-2">
+        <button data-testid="save-tiktok-config-btn" onClick={save}
+          disabled={saving || !form.client_key || (!cfg.client_secret_set && !form.client_secret)}
+          className="flex-1 py-2 text-xs font-bold disabled:opacity-50"
+          style={{ background: '#ff0050', color: '#ffffff' }}>{saving ? 'Salvando...' : 'Salvar'}</button>
+        {cfg.configured && (
+          <button data-testid="delete-tiktok-config-btn" onClick={remove} className="px-4 py-2 text-xs font-bold" style={{ background: 'var(--bg-elevated)', color: 'var(--error)', border: '1px solid rgba(239,68,68,0.3)' }}>Remover</button>
+        )}
+      </div>
+
+      <details className="mt-4">
+        <summary className="text-[11px] cursor-pointer" style={{ color: 'var(--text-tertiary)' }}>Ver escopos ({cfg.scopes?.length || 0})</summary>
+        <ul className="mt-2 text-[11px] space-y-0.5" style={{ color: 'var(--text-tertiary)' }}>
+          {cfg.scopes?.map(s => <li key={s}>• {s}</li>)}
+        </ul>
+      </details>
+
+      <p className="mt-3 text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+        Crie um app em <code>developers.tiktok.com</code>, adicione o produto <strong>Login Kit</strong> + <strong>Content Posting API</strong>, configure o Redirect URI acima e cole aqui o Client Key + Client Secret.
+      </p>
+    </div>
+  );
+}
+

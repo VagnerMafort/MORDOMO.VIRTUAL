@@ -76,6 +76,13 @@ export default function ChatPage() {
     } else if (params.get('meta') === 'error') {
       toast.error(`Erro ao conectar Meta: ${params.get('reason') || 'desconhecido'}`);
       window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('tiktok') === 'connected') {
+      toast.success('Conta TikTok conectada com sucesso!');
+      setShowIntegrations(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('tiktok') === 'error') {
+      toast.error(`Erro ao conectar TikTok: ${params.get('reason') || 'desconhecido'}`);
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
 
@@ -135,7 +142,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div data-testid="chat-page" className="h-screen flex overflow-hidden" style={{ background: 'var(--bg-base)' }}>
+    <div data-testid="chat-page" className="h-screen h-[100dvh] flex overflow-hidden" style={{ background: 'var(--bg-base)' }}>
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
@@ -172,7 +179,7 @@ export default function ChatPage() {
       </div>
 
       {/* Main area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {/* Mobile header */}
         <div className="flex items-center gap-3 px-4 py-3 lg:hidden" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
           <button
