@@ -147,6 +147,11 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
                 const title = content.slice(0, 50) + (content.length > 50 ? '...' : '');
                 onConversationUpdated(convId, title);
               }
+              // Detect [KAELUM_OPEN:painel] marker and dispatch event for sidebar to open panel
+              const openMatch = fullContent.match(/\[KAELUM_OPEN:(\w+)\]/);
+              if (openMatch) {
+                window.dispatchEvent(new CustomEvent('kaelum-open-panel', { detail: { panel: openMatch[1] } }));
+              }
             }
           } catch {}
         }
@@ -169,14 +174,16 @@ export default function ChatArea({ conversationId, onConversationUpdated, onCrea
               Kaelum<span style={{ color: 'var(--accent-soft)' }}>.AI</span>
             </h2>
             <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
-              Assistente virtual inteligente. Pergunte qualquer coisa, execute tarefas, automatize processos.
+              Conheco todo o Kaelum. Pergunte como funciona, peca para abrir paineis, criar mentorias, lancar campanhas — tudo pelo chat.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {[
-                'Como posso automatizar tarefas?',
-                'Extraia dados de uma pagina web',
-                'Que horas sao agora?',
-                'Execute um calculo complexo',
+                'Como conecto o Google?',
+                'Crie uma mentoria sobre marketing digital',
+                'Abre o painel JAMES Agency',
+                'Configura agencia para meu produto Curso de Oratoria',
+                'Status das minhas integracoes',
+                'Mostra minhas mentorias',
               ].map((q, i) => (
                 <button
                   key={i}

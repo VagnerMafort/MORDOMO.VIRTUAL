@@ -83,6 +83,33 @@ export default function ChatPage() {
     })();
   }, [api]);
 
+  // Listen for chat-driven panel opens (skill system_action)
+  useEffect(() => {
+    const handler = (e) => {
+      const panel = e.detail?.panel;
+      const map = {
+        admin: setShowAdmin,
+        integrations: setShowIntegrations,
+        james: setShowJames,
+        workflows: setShowWorkflows,
+        mentorship: setShowMentorship,
+        agency: setShowAgency,
+        publisher: setShowSocial,
+        skills: setShowSkills,
+        monitor: setShowMonitor,
+        settings: setShowSettings,
+        agents: setShowAgents,
+      };
+      const fn = map[panel];
+      if (fn) {
+        fn(true);
+        toast.success(`Abrindo ${panel}...`);
+      }
+    };
+    window.addEventListener('kaelum-open-panel', handler);
+    return () => window.removeEventListener('kaelum-open-panel', handler);
+  }, []);
+
   // Detecta retorno do OAuth Google callback via query string
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

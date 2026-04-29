@@ -334,6 +334,9 @@ AVAILABLE_SKILLS = [
     {"id": "facebook", "name": "Facebook Pages", "description": "Publica post em Facebook Page", "icon": "Facebook"},
     {"id": "whatsapp", "name": "WhatsApp Business", "description": "Envia mensagens via WhatsApp Cloud API", "icon": "MessageCircle"},
     {"id": "james", "name": "JAMES Agency", "description": "Sistema autonomo de marketing: tick, report, anomalias (24 agentes)", "icon": "Brain"},
+    {"id": "system_action", "name": "Sistema (UI)", "description": "Abre paineis e dispara acoes na UI do Kaelum", "icon": "Sparkles"},
+    {"id": "mentorship", "name": "Mentoria", "description": "Cria/lista/exporta mentorias sob demanda", "icon": "GraduationCap"},
+    {"id": "agency_action", "name": "Agencia Vertical", "description": "Operacao completa de agencia para um produto (cria produto JAMES, campanhas, autopilot)", "icon": "Building2"},
 ]
 
 import subprocess, shutil
@@ -408,6 +411,118 @@ async def execute_skill(skill_id: str, args: dict, user_id: str = None) -> str:
         elif skill_id == "james":
             from james import api as james_api
             return await james_api.execute_james_skill(args, user_id)
+
+        elif skill_id == "system_action":
+            # Retorna instrucao especial: o frontend interpreta e abre o painel
+            target = (args.get("open") or "").lower().strip()
+            valid = {"admin", "integrations", "james", "workflows", "mentorship",
+                     "agency", "publisher", "skills", "monitor", "settings", "agents"}
+            if target not in valid:
+                return f"Painel '{target}' nao reconhecido. Use um de: {', '.join(sorted(valid))}"
+            # Marker que o frontend escuta pra abrir painel automaticamente
+            return f"[KAELUM_OPEN:{target}] Abrindo o painel **{target}** pra voce. Em alguns segundos ele aparece na tela."
+
+        elif skill_id == "mentorship":
+            action = (args.get("action") or "list").lower()
+            if action == "generate":
+                title = args.get("title") or "Mentoria sem titulo"
+                knowledge = args.get("knowledge_text") or args.get("topic") or title
+                niche = args.get("niche", "")
+                audience = args.get("target_audience", "")
+                weeks = int(args.get("duration_weeks", 8))
+                # Chama endpoint interno via funcao direta
+                from mentorship import generate_mentorship as _gen
+                # Reusa logica: monta payload e chama
+                from pydantic import BaseModel
+                class _Body(BaseModel):
+                    title: str
+                    knowledge_text: str
+                    niche: str = ""
+                    target_audience: str = ""
+                    duration_weeks: int = 8
+                body = _Body(title=title, knowledge_text=knowledge, niche=niche,
+                              target_audience=audience, duration_weeks=weeks)
+                # Reconstroi user from db
+                user = await db.users.find_one({"_id": user_id})
+                if not user:
+                    return "Erro: usuario nao encontrado pra criar mentoria."
+                try:
+                    fake_request = type("R", (), {"state": type("S", (), {"user": user})()})()
+                    m = await _gen(body, fake_request)
+                    return (f"Mentoria **{m['title']}** criada com sucesso!\n\n"
+                            f"- {len(m.get('modules',[]))} modulos gerados\n"
+                            f"- Duracao: {m.get('duration_weeks')} semanas\n"
+                            f"- Aparece agora em **Mentorias** (menu Sidebar > GraduationCap)\n\n"
+                            f"Quer que eu abra o painel? Diga 'abre mentoria'.")
+                except Exception as e:
+                    return f"Erro ao gerar mentoria: {str(e)[:200]}"
+            elif action == "list":
+                ms = await db.mentorships.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).limit(10).to_list(10)
+                if not ms:
+                    return "Voce ainda nao tem mentorias. Diga 'crie mentoria sobre X' pra comecar."
+                lines = ["**Suas mentorias:**"]
+                for m in ms:
+                    lines.append(f"- {m['title']} ({len(m.get('modules', []))} modulos, {m.get('duration_weeks',0)} sem.)")
+                return "\n".join(lines)
+            else:
+                return f"Action '{action}' nao reconhecida. Use: generate | list"
+
+        elif skill_id == "agency_action":
+            action = (args.get("action") or "status").lower()
+            if action == "status":
+                products = await db.james_products.count_documents({"user_id": user_id})
+                google = await db.google_accounts.find_one({"user_id": user_id})
+                meta = await db.meta_accounts.find_one({"user_id": user_id})
+                tk = await db.tiktok_accounts.find_one({"user_id": user_id})
+                tg = await db.telegram_connections.find_one({"user_id": user_id})
+                return (f"**Status da Agencia:**\n"
+                        f"- Produtos JAMES: {products}\n"
+                        f"- Google: {'conectado' if google else 'nao conectado'}\n"
+                        f"- Meta: {'conectado' if meta else 'nao conectado'}\n"
+                        f"- TikTok: {'conectado' if tk else 'nao conectado'}\n"
+                        f"- Telegram: {'conectado' if tg else 'nao conectado'}")
+            if action in ("setup_full", "create_product"):
+                name = args.get("product_name") or args.get("name")
+                if not name:
+                    return "Erro: precisa informar 'product_name' (ou 'name')"
+                from james.models import Product
+                p = Product(
+                    user_id=user_id, name=name,
+                    niche=args.get("niche", ""),
+                    target_audience=args.get("target_audience", ""),
+                    offer=args.get("offer", ""),
+                    budget_daily=float(args.get("budget_daily", 50)),
+                    budget_preset=args.get("budget_preset", "conservative"),
+                )
+                await db.james_products.insert_one(p.model_dump())
+                msg = f"Produto **{name}** criado no JAMES (id: {p.id[:8]}...)."
+                if action == "setup_full":
+                    # Liga autopilot baixo risco + relatorio diario
+                    await db.james_products.update_one(
+                        {"id": p.id},
+                        {"$set": {
+                            "autopilot_enabled": True,
+                            "autopilot_interval_min": 30,
+                            "auto_approve_risk": "low",
+                            "daily_report_enabled": True,
+                        }},
+                    )
+                    msg += ("\nAutopilot ATIVADO (intervalo 30min, auto-aprovar risco baixo, "
+                            "relatorio diario via Telegram).\n\n"
+                            "Proximos passos:\n"
+                            "1. Conectar Meta Ads em **Minhas Integracoes** (se ainda nao)\n"
+                            "2. Configurar pixel do produto\n"
+                            "3. Diga 'lanca campanha' que eu disparo a criacao automatica")
+                return msg
+            if action == "launch_campaign":
+                meta = await db.meta_accounts.find_one({"user_id": user_id})
+                if not meta:
+                    return ("Voce ainda nao conectou o Meta. Vai em **Minhas Integracoes** "
+                            "(menu Plug) → card Meta → Conectar com Meta. Depois me chama de novo.")
+                return ("Pra criar campanha eu preciso de mais info: ad_account_id, pixel_id, "
+                        "page_id e landing_url. Abre o painel **JAMES Agency** > seu produto > "
+                        "'Lancar Campanha' que tem formulario completo.")
+            return f"Action '{action}' nao reconhecida"
 
         elif skill_id == "web_scraper":
             url = args.get("url", "")
@@ -885,6 +1000,19 @@ SYSTEM_PROMPT = """Voce e o NovaClaw, um mordomo virtual AI avancado. Voce execu
   (coleta->baseline->anomalias->priorizacao->orquestracao->plano). "report" gera relatorio executivo via ECHO.
   "anomalias" lista desvios detectados. product_id obrigatorio para tick/anomalias.
 
+[SKILL:system_action] {"open":"admin|integrations|james|workflows|mentorship|agency|publisher|skills|monitor|settings|agents"}
+- Abre paineis da UI do Kaelum direto pelo chat. Use quando o usuario pedir
+  "abre X", "vai pra Y", "mostra Z". O frontend escuta o evento e abre o painel.
+
+[SKILL:mentorship] {"action":"generate|list|get", "title":"...", "knowledge_text":"...", "niche":"...", "target_audience":"...", "duration_weeks":8}
+- "generate" cria mentoria nova (precisa title + knowledge_text). Demora 2-5min.
+  Aparece em Mentorias no menu e no historico. "list" mostra ultimas. "get" precisa id.
+
+[SKILL:agency_action] {"action":"setup_full|create_product|launch_campaign|status", "product_name":"...", "niche":"...", "target_audience":"...", "offer":"...", "budget_preset":"conservative|moderate|aggressive"}
+- Operacao vertical da agencia. "setup_full" cria produto JAMES + ativa autopilot 24/7
+  e sugere proximos passos. "create_product" so registra. "launch_campaign" dispara
+  criacao de campanha Meta Ads (precisa Meta conectado). "status" resume.
+
 ## REGRAS:
 - Quando o usuario pedir para executar, rodar, ou criar algo, USE A SKILL APROPRIADA
 - Quando pedir para analisar codigo, analise diretamente sem executar
@@ -894,8 +1022,11 @@ SYSTEM_PROMPT = """Voce e o NovaClaw, um mordomo virtual AI avancado. Voce execu
 - Seja proativo: se pode resolver com uma skill, use-a"""
 
 def build_messages(history: list, user_msg: str, custom_prompt: str = None) -> list:
-    prompt = custom_prompt if custom_prompt else SYSTEM_PROMPT
-    messages = [{"role": "system", "content": prompt}]
+    from kaelum_knowledge import KAELUM_KNOWLEDGE
+    base_prompt = custom_prompt if custom_prompt else SYSTEM_PROMPT
+    # Injeta knowledge base no system prompt para o chat conhecer todo o sistema
+    full_prompt = KAELUM_KNOWLEDGE + "\n\n---\n\n" + base_prompt
+    messages = [{"role": "system", "content": full_prompt}]
     for m in history[-20:]:
         messages.append({"role": m["role"], "content": m["content"]})
     messages.append({"role": "user", "content": user_msg})
