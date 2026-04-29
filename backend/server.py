@@ -1395,6 +1395,11 @@ james_campaign_launcher.init(db, get_current_user)
 app.include_router(james_api.router)
 app.include_router(james_campaign_launcher.router)
 
+# Diagnostics — endpoint público pra debug do sistema
+import diagnostics
+diagnostics.init(db, OLLAMA_URL, OLLAMA_MODEL)
+app.include_router(diagnostics.router)
+
 
 @app.on_event("startup")
 async def _start_james_autopilot():
